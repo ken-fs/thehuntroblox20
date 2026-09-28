@@ -1,0 +1,6 @@
+{
+  "rows": [
+    { "keys": ["https://wiki.example.com/bosses/emberfang", "emberfang boss guide"], "clicks": 120, "impressions": 6000, "ctr": 0.02, "position": 4.2 },
+    { "keys": ["https://wiki.example.com/codes", "wiki codes"], "clicks": 30, "impressions": 1000, "ctr": 0.03, "position": 8.5 }
+  ]
+}

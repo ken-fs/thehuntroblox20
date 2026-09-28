@@ -1,0 +1,24 @@
+---
+/**
+ * Tag index — non-default locales: /[locale]/tags
+ */
+import TagsIndexPage from '~/components/article/TagsIndexPage.astro';
+import { defaultLocale, isLocale, locales, type Locale } from '~/i18n/routing';
+import { languageAlternates, tagsPath } from '~/lib/url';
+
+export function getStaticPaths() {
+  return locales
+    .filter((l) => l !== defaultLocale)
+    .map((locale) => ({ params: { locale } }));
+}
+
+const localeParam = Astro.params.locale;
+if (!isLocale(localeParam) || localeParam === defaultLocale) {
+  return new Response('Not Found', { status: 404 });
+}
+const locale: Locale = localeParam;
+
+const alternates = languageAlternates((loc) => tagsPath(loc), locales);
+---
+
+<TagsIndexPage locale={locale} alternates={alternates} />

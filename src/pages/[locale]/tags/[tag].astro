@@ -1,0 +1,48 @@
+---
+/**
+ * Tag aggregation — non-default locales: /[locale]/tags/<tag>
+ * Only tags used by this locale's own articles (no English fallback).
+ */
+import TagListPage from '~/components/article/TagListPage.astro';
+import { defaultLocale, isLocale, locales, type Locale } from '~/i18n/routing';
+import { slugifyTag, localesForTag, parseEntryId } from '~/lib/content';
+import { languageAlternates, tagPath } from '~/lib/url';
+
+export async function getStaticPaths() {
+  const { getCollection } = await import('astro:content');
+  const all = await getCollection('wiki');
+  const isDev = import.meta.env.DEV;
+
+  const paths: Array<{ params: { locale: string; tag: string } }> = [];
+  for (const locale of locales) {
+    if (locale === defaultLocale) continue;
+    const slugs = new Set<string>();
+    for (const entry of all) {
+      if (entry.data.draft && !isDev) continue;
+      const parsedId = parseEntryId(entry.id);
+      if (!parsedId || parsedId.locale !== locale) continue;
+      for (const tag of entry.data.tags) {
+        const slug = slugifyTag(tag);
+        if (slug) slugs.add(slug); // skip empty-string slugs (blank tags)
+      }
+    }
+    for (const tagSlug of slugs) {
+      paths.push({ params: { locale, tag: tagSlug } });
+    }
+  }
+  return paths;
+}
+
+const localeParam = Astro.params.locale;
+const tagSlug = Astro.params.tag ?? '';
+if (!isLocale(localeParam) || localeParam === defaultLocale || !tagSlug) {
+  return new Response('Not Found', { status: 404 });
+}
+const locale: Locale = localeParam;
+
+// hreflang only for locales where the tag actually exists (no fallback).
+const tagLocales = await localesForTag(tagSlug);
+const alternates = languageAlternates((loc) => tagPath(tagSlug, loc), tagLocales);
+---
+
+<TagListPage locale={locale} tagSlug={tagSlug} alternates={alternates} />

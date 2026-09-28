@@ -1,0 +1,52 @@
+---
+/**
+ * AffiliateSuggestion — config-driven end-of-article monetization slot (v2.0).
+ *
+ * Data comes from src/config/affiliates.ts (CONFIG LAYER, edited once per
+ * game). With an empty config this renders NOTHING — same off-by-default
+ * contract as AdSense / comments / sponsor, so the template still ships
+ * Lighthouse 4×100 out of the box.
+ *
+ * Renders up to 2 AffiliateLink cards (SEO-compliant rel="sponsored
+ * nofollow noopener" is handled there); the "Sponsored" badge is localized
+ * via shared.sponsoredLabel (AffiliateLink itself hardcodes English — this
+ * component passes the locale-aware label in).
+ *
+ * Usage (ArticlePage, end of article):
+ *   <AffiliateSuggestion locale={locale} category={entry.data.category} />
+ */
+import AffiliateLink from '~/components/mdx/AffiliateLink.astro';
+import { affiliates } from '~/config/affiliates';
+import { getUi } from '~/i18n/ui';
+import { type Locale } from '~/i18n/routing';
+import { pickSuggestions } from '~/lib/affiliates';
+
+interface Props {
+  locale: Locale;
+  /** Article category — filters suggestions scoped via `categories`. */
+  category?: string;
+}
+
+const { locale, category } = Astro.props;
+
+// Gate: empty config (or nothing matching this category) = no DOM at all.
+const items = pickSuggestions(affiliates, category);
+if (items.length === 0) return null;
+
+const ui = getUi(locale);
+const shared = ui.shared;
+---
+
+<div class="not-prose mt-8 space-y-4">
+  {
+    items.map((item) => (
+      <AffiliateLink
+        url={item.url}
+        title={item.title}
+        description={item.description}
+        cta={item.cta}
+        sponsoredLabel={shared.sponsoredLabel}
+      />
+    ))
+  }
+</div>

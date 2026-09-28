@@ -1,0 +1,30 @@
+---
+/**
+ * InContentAd — a page-internal ad slot (e.g. between article sections).
+ *
+ * Renders a Google AdSense responsive unit (AdSense decides the best size
+ * for the viewport). Gated on PUBLIC_ADSENSE_CLIENT + PUBLIC_ADSENSE_SLOT_INCONTENT:
+ * either empty = nothing rendered.
+ *
+ * Unlike StickyBanner, this is not sticky; it sits inline with content.
+ */
+import AdSenseSlot from './AdSenseSlot.astro';
+import { currentSharedStrings } from '~/lib/shared-ui';
+
+interface Props {
+  /** Optional label override above the ad (for disclosure). */
+  label?: string;
+}
+
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT as string | undefined;
+const slot = import.meta.env.PUBLIC_ADSENSE_SLOT_INCONTENT as string | undefined;
+const show = !!(client && slot);
+const sharedStrings = currentSharedStrings(Astro.currentLocale);
+const { label = sharedStrings.adLabel ?? 'Advertisement' } = Astro.props;
+---
+{show && (
+  <div class="my-8 flex min-h-[250px] flex-col items-center justify-center">
+    <span class="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+    <AdSenseSlot position="incontent" />
+  </div>
+)}

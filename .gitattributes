@@ -1,0 +1,17 @@
+# Normalize all text files to LF in the working tree on EVERY platform.
+# Windows + core.autocrlf=true would check out CRLF files, which breaks
+# exact-match line parsing in scripts (check-content frontmatter delimiter)
+# and can shift CI behavior between platforms.
+* text=auto eol=lf
+
+# Binaries — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.psd binary

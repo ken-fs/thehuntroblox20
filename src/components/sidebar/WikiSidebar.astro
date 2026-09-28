@@ -1,0 +1,88 @@
+---
+/**
+ * WikiSidebar — the article detail page sidebar.
+ *
+ * Contains:
+ *   - Dynamic navigation (auto-generated from actual MDX files via
+ *     getDynamicNavigation). Groups by category, lists articles.
+ *   - Sidebar ad slots (desktop only).
+ *
+ * Sticky on desktop so it follows the reader as they scroll.
+ *
+ * Hidden on mobile (the main nav + in-page TOC cover mobile navigation).
+ */
+import { Icon } from 'astro-icon/components';
+import SidebarAd from '~/components/ads/SidebarAd.astro';
+import AdsterraSlot from '~/components/ads/AdsterraSlot.astro';
+import { type Locale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+import { getDynamicNavigation } from '~/lib/navigation';
+import { localizePath } from '~/lib/url';
+import { site } from '~/config/site';
+
+interface Props {
+  locale: Locale;
+  /** Current article path (to highlight active link). */
+  currentPath?: string;
+  /** When true, hide ad slots (used when sidebar shares space with a TOC). */
+  compact?: boolean;
+}
+const { locale, currentPath = '', compact = false } = Astro.props;
+const ui = getUi(locale);
+const nav = ui.nav as Record<string, string>;
+const groups = await getDynamicNavigation(locale, nav);
+---
+<div class="space-y-6">
+    <div class="max-h-[calc(100vh-6rem)] overflow-y-auto pr-2">
+    {/* Wiki navigation */}
+    <nav aria-label="Wiki navigation">
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {site.shortName}
+      </h2>
+      {groups.map((group) => (
+        <div class="mb-4">
+          <a
+            href={localizePath(group.path, locale)}
+            class="mb-1 flex items-center justify-between text-sm font-semibold text-foreground hover:text-nav"
+          >
+            <span class="flex items-center gap-1.5">
+              <Icon name={group.icon} class="h-4 w-4 text-nav" />
+              {group.label}
+            </span>
+            {group.count > 0 && (
+              <span class="text-[10px] text-muted-foreground">{group.count}</span>
+            )}
+          </a>
+          {group.entries.length > 0 && (
+            <ul class="space-y-0.5 border-l border-border pl-3">
+              {group.entries.map((entry) => {
+                const href = localizePath(entry.path, locale);
+                const isActive = currentPath === href;
+                return (
+                  <li>
+                    <a
+                      href={href}
+                      class:list={[
+                        'block truncate py-0.5 text-xs transition',
+                        isActive
+                          ? 'font-medium text-nav'
+                          : 'text-muted-foreground hover:text-foreground',
+                      ]}
+                      title={entry.title}
+                    >
+                      {entry.title}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ))}
+    </nav>
+
+    {/* Sidebar ads — hidden in compact mode (when sharing space with TOC) */}
+    {!compact && <SidebarAd />}
+    {!compact && <AdsterraSlot name="sidebar-300x250" width={300} height={250} />}
+  </div>
+</div>

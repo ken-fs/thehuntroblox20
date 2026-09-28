@@ -1,0 +1,52 @@
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# environment variables
+.env
+.env.production
+.env.local
+.dev.vars
+
+# macOS
+.DS_Store
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# ZCode agent workspace
+.zcode/
+
+# Cloudflare
+.wrangler/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Superpowers
+.superpowers/
+
+# secrets & local credentials — never commit (incident-earned rule: a leaked
+# key is a dead key; revoke first, clean history second). IndexNow keys are
+# public by protocol design and NOT secrets.
+*-secret.json
+*.pem
+*.key
+seo-reports/
+
+# daily ops reports (local automation, never committed)
+reports/
+
+# anvil-ops site-local ops data (metrics --import-aio --save CSV archives) — never swept into a submit PR
+ops/

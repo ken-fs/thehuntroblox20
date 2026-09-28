@@ -1,0 +1,77 @@
+---
+/**
+ * ExploreModules — renders the homepage content modules.
+ *
+ * Each module specifies a `displayType` that controls how its `highlights`
+ * are rendered. We dispatch to the corresponding sub-component.
+ *
+ * Supported displayTypes (per PRD §6.5):
+ *   - badge-list      → CodeCards (redeemable codes with badge)
+ *   - steps    → StepByStep (numbered progression steps)
+ *   - ranked-grid       → TierGrid (S/A/B/C ranked items)
+ *   - labeled-cards       → CardList (simple labeled cards)
+ *   - timeline        → Timeline (vertical timeline of dated events)
+ *   - video-grid      → VideoGrid (2-column video thumbnail grid)
+ *
+ * v0.2: each module card is now a single clickable <a> (block-level) with
+ * hover border feedback, replacing the cramped "View" link that sat on the
+ * same line as the title. The whole tile navigates; an arrow in the footer
+ * signals affordance.
+ */
+import { Icon } from 'astro-icon/components';
+import CodeCards from './modules/CodeCards.astro';
+import StepByStep from './modules/StepByStep.astro';
+import TierGrid from './modules/TierGrid.astro';
+import CardList from './modules/CardList.astro';
+import Timeline from './modules/Timeline.astro';
+import VideoGrid from './modules/VideoGrid.astro';
+import { type Locale } from '~/i18n/routing';
+import { localizePath } from '~/lib/url';
+import { getUi } from '~/i18n/ui';
+
+interface Props {
+  modules: Array<{
+    order: number;
+    name: string;
+    description: string;
+    href: string;
+    displayType: string;
+    // highlights 的字段结构由 displayType 决定(见各子组件 Props),
+    // dispatcher 不假设具体字段。类型安全由各子组件内部的 Props
+    // interface 保证(JSON 层不参与 TS 检查,见 spec §2.2)。
+    highlights: Array<any>;
+  }>;
+  locale: Locale;
+}
+const { modules, locale } = Astro.props;
+const sharedStrings = getUi(locale).shared;
+const viewAll = sharedStrings.viewAll ?? 'View all';
+---
+
+<div class="grid gap-6 md:grid-cols-2">
+  {
+    modules.map((m) => (
+      <a href={localizePath(m.href, locale)} class="card group block overflow-hidden p-5">
+        <h3 class="text-lg font-bold leading-snug">{m.name}</h3>
+        <p class="mt-1 text-sm text-muted-foreground">{m.description}</p>
+
+        <div class="mt-4">
+          {m.displayType === 'badge-list' && <CodeCards highlights={m.highlights} />}
+          {m.displayType === 'steps' && <StepByStep highlights={m.highlights} />}
+          {m.displayType === 'ranked-grid' && <TierGrid highlights={m.highlights} />}
+          {m.displayType === 'labeled-cards' && <CardList highlights={m.highlights} />}
+          {m.displayType === 'timeline' && <Timeline highlights={m.highlights} />}
+          {m.displayType === 'video-grid' && <VideoGrid highlights={m.highlights} />}
+        </div>
+
+        <p class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-foreground hover:text-nav">
+          <span class="border-b border-transparent transition group-hover:border-nav">{viewAll}</span>
+          <Icon
+            name="lucide:arrow-right"
+            class="h-3 w-3 transition group-hover:translate-x-0.5"
+          />
+        </p>
+      </a>
+    ))
+  }
+</div>

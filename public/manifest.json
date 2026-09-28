@@ -1,0 +1,21 @@
+{
+  "name": "The Hunt: Roblox 20 Wiki",
+  "short_name": "The Hunt: Roblox 20",
+  "description": "The Hunt: Roblox 20 complete reference: all 20 participating games, all badge rewards, grand prize winners, and the full recap of Roblox's 20th anniversary event (September 17-28, 2026).",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e8a217",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

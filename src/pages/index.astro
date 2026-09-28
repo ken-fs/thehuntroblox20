@@ -1,0 +1,22 @@
+---
+/**
+ * Root index — handles the default-locale (English) homepage.
+ *
+ * With `prefixDefaultLocale: false`, the root URL `/` maps here directly
+ * (not to /en/). We render the English homepage inline rather than redirecting,
+ * because a redirect adds a round-trip and hurts LCP.
+ *
+ * Non-default locales use /ja/ etc., handled by src/pages/[locale]/index.astro.
+ */
+import HomePage from '~/components/home/HomePage.astro';
+import { defaultLocale, locales } from '~/i18n/routing';
+import { videoGameJsonLd, websiteJsonLd } from '~/lib/seo';
+import { homeUrl, languageAlternates } from '~/lib/url';
+
+const locale = defaultLocale;
+const jsonLd = [websiteJsonLd(locale), videoGameJsonLd()];
+// hreflang alternates: Home → / (en) or /<locale> for each locale.
+const alternates = languageAlternates((loc) => homeUrl(loc), locales);
+---
+
+<HomePage locale={locale} jsonLd={jsonLd} alternates={alternates} />

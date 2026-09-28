@@ -1,0 +1,14 @@
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "rumOperationsGroups": [
+            { "count": 5400, "dimensions": { "rumPageUrl": "https://wiki.example.com/" } },
+            { "count": 2100, "dimensions": { "rumPageUrl": "https://wiki.example.com/bosses/emberfang" } }
+          ]
+        }
+      ]
+    }
+  }
+}

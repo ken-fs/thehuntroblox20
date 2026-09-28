@@ -1,0 +1,94 @@
+---
+/**
+ * Unified route for DEFAULT locale (English, no URL prefix): /[...slug]
+ *
+ * Handles:
+ *   - /bosses                  → list page (slug.length === 1)
+ *   - /bosses/emberfang            → article detail (slug.length > 1)
+ *
+ * Non-default locales (/ja/...) are handled by src/pages/[locale]/[...slug].astro.
+ */
+import ListPage from '~/components/article/ListPage.astro';
+import ArticlePage from '~/components/article/ArticlePage.astro';
+import { CONTENT_TYPES } from '~/config/navigation';
+import { defaultLocale, type Locale } from '~/i18n/routing';
+import { getEntryWithFallback, localesForEntry, localesForCategory, parseEntryId, type ResolvedEntry } from '~/lib/content';
+import { detailPath, languageAlternates, listPath } from '~/lib/url';
+
+export async function getStaticPaths() {
+  const { getCollection } = await import('astro:content');
+  const all = await getCollection('wiki');
+  const isDev = import.meta.env.DEV;
+
+  const paths: Array<{ params: { slug: string } }> = [];
+
+  // List page paths: one per category (English default locale).
+  for (const ct of CONTENT_TYPES) {
+    paths.push({ params: { slug: ct } });
+  }
+
+  // Article paths: one per English MDX. Drafts are dev-only (never built).
+  for (const entry of all) {
+    if (entry.data.draft && !isDev) continue;
+    const parsed = parseEntryId(entry.id);
+    if (!parsed || parsed.locale !== defaultLocale) continue;
+    paths.push({ params: { slug: `${parsed.category}/${parsed.slug}` } });
+  }
+
+  return paths;
+}
+
+interface Props {
+  slug: string;
+}
+
+const slug = Astro.params.slug;
+const parts = (slug ?? '').split('/').filter(Boolean);
+const locale: Locale = defaultLocale;
+
+// Decide what to render based on slug length.
+let view: 'list' | 'article' | 'not-found' = 'not-found';
+let category = '';
+let articleSlug = '';
+let resolved: ResolvedEntry | null = null;
+
+if (parts.length === 1) {
+  category = parts[0];
+  view = CONTENT_TYPES.includes(category) ? 'list' : 'not-found';
+} else {
+  category = parts[0];
+  articleSlug = parts.slice(1).join('/');
+  if (CONTENT_TYPES.includes(category)) {
+    resolved = await getEntryWithFallback(category, articleSlug, locale);
+    view = resolved ? 'article' : 'not-found';
+  }
+}
+
+if (view === 'not-found') {
+  return new Response('Not Found', { status: 404 });
+}
+
+// Build hreflang alternates for this page.
+// List page: /<category> for default locale, /<locale>/<category> otherwise —
+// only locales that actually have an article in the category are declared
+// (localesForCategory): the empty-state list pages are noindex thin content
+// and must not be advertised as language versions (mirrors the sitemap-side
+// coverage in astro.config.ts). Article page: hreflang must match the page's
+// content language, so only locales with a real translated MDX version
+// (localesForEntry) are declared — e.g. a ja-only article must not emit
+// hreflang="en" pointing at a 404, and an English page never falsely claims
+// another language. (This route is the default locale, so no fallback case
+// exists here.)
+const entryLocales = view === 'article' ? await localesForEntry(category, articleSlug) : [];
+const listLocales = view === 'list' ? await localesForCategory(category) : [];
+const altLocales = view === 'list' ? listLocales : Array.from(new Set([locale, ...entryLocales]));
+const alternates =
+  view === 'list'
+    ? languageAlternates((loc) => listPath(category, loc), listLocales)
+    : languageAlternates((loc) => detailPath(category, articleSlug, loc), entryLocales);
+---
+
+{view === 'list' && <ListPage locale={locale} category={category} alternates={alternates} />}
+{view === 'article' && resolved && (
+  <ArticlePage locale={locale} resolved={resolved} alternates={alternates} availableLocales={altLocales} />
+)}

@@ -1,0 +1,5 @@
+# Makes this package its own pnpm workspace root, so installs from this
+# directory are not hijacked by the repo root's pnpm-workspace.yaml.
+# allowBuilds uses the pnpm 11 syntax (AGENTS.md constraint).
+allowBuilds:
+  esbuild: true

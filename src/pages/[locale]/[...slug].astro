@@ -1,0 +1,120 @@
+---
+/**
+ * Unified route for non-default-locale pages: /[locale]/[...slug]
+ *
+ * Handles:
+ *   - /[locale]/[category]            → list page (slug.length === 1)
+ *   - /[locale]/[category]/[slug]     → article detail (slug.length > 1)
+ *
+ * English (default locale, no prefix) is handled by src/pages/[...slug].astro.
+ */
+import ListPage from '~/components/article/ListPage.astro';
+import ArticlePage from '~/components/article/ArticlePage.astro';
+import { CONTENT_TYPES } from '~/config/navigation';
+import { isLocale, defaultLocale, locales, type Locale } from '~/i18n/routing';
+import { getEntryWithFallback, localesForEntry, localesForCategory, parseEntryId, type ResolvedEntry } from '~/lib/content';
+import { detailPath, languageAlternates, listPath } from '~/lib/url';
+
+export async function getStaticPaths() {
+  const { getCollection } = await import('astro:content');
+  const all = await getCollection('wiki');
+  const isDev = import.meta.env.DEV;
+  // Drafts are dev-only — never generate production pages for them.
+  const published = all.filter((e) => isDev || !e.data.draft);
+
+  const paths: Array<{
+    params: { locale: string; slug: string };
+  }> = [];
+
+  // Only non-default locales here.
+  // `locales` is a module-level export (visible inside getStaticPaths,
+  // unlike same-file top-level const — see AGENTS.md Astro 5 gotcha #3).
+  const nonDefaultLocales = locales.filter((l) => l !== defaultLocale);
+
+  for (const locale of nonDefaultLocales) {
+    // List page paths: one per category per locale.
+    for (const ct of CONTENT_TYPES) {
+      paths.push({ params: { locale, slug: ct } });
+    }
+
+    // Article paths from this locale's own MDX.
+    for (const entry of published) {
+      const parsed = parseEntryId(entry.id);
+      if (!parsed || parsed.locale !== locale) continue;
+      paths.push({ params: { locale, slug: `${parsed.category}/${parsed.slug}` } });
+    }
+
+    // Also generate paths for English articles so fallback works at request
+    // time (e.g. /ja/bosses/stormcaller where ja version doesn't exist).
+    for (const entry of published) {
+      const parsed = parseEntryId(entry.id);
+      if (!parsed || parsed.locale !== defaultLocale) continue;
+      const slugStr = `${parsed.category}/${parsed.slug}`;
+      // Avoid duplicate params (if same slug exists in both locales).
+      const exists = paths.some((p) => p.params.locale === locale && p.params.slug === slugStr);
+      if (!exists) {
+        paths.push({ params: { locale, slug: slugStr } });
+      }
+    }
+  }
+
+  return paths;
+}
+
+interface Props {
+  locale: string;
+  slug: string;
+}
+
+const localeParam = Astro.params.locale;
+const slug = Astro.params.slug;
+if (!isLocale(localeParam) || localeParam === defaultLocale || !slug) {
+  return new Response('Not Found', { status: 404 });
+}
+const locale: Locale = localeParam;
+const parts = slug.split('/').filter(Boolean);
+
+// Decide what to render based on slug length.
+let view: 'list' | 'article' | 'not-found' = 'not-found';
+let category = '';
+let resolved: ResolvedEntry | null = null;
+
+const articleSlug = parts.slice(1).join('/');
+
+if (parts.length === 1) {
+  category = parts[0];
+  view = CONTENT_TYPES.includes(category) ? 'list' : 'not-found';
+} else {
+  category = parts[0];
+  if (CONTENT_TYPES.includes(category)) {
+    resolved = await getEntryWithFallback(category, articleSlug, locale);
+    view = resolved ? 'article' : 'not-found';
+  }
+}
+
+if (view === 'not-found') {
+  return new Response('Not Found', { status: 404 });
+}
+
+// Build hreflang alternates (same URL shape, varying locale). hreflang must
+// match the page's actual CONTENT language: on fallback pages (English
+// content served at a /ja/ URL) declaring hreflang="ja" for this URL is
+// invalid, so article alternates cover only locales with a real translated
+// MDX version (localesForEntry). A ja-only article must not emit
+// hreflang="en" pointing at a 404 either.
+const entryLocales = view === 'article' ? await localesForEntry(category, articleSlug) : [];
+const listLocales = view === 'list' ? await localesForCategory(category) : [];
+const alternates =
+  view === 'list'
+    ? languageAlternates((loc) => listPath(category, loc), listLocales)
+    : languageAlternates((loc) => detailPath(category, articleSlug, loc), entryLocales);
+// The language switcher is UI, not a language claim — fallback URLs are real
+// reachable pages, so it offers the union (current locale + translated ones).
+const switcherLocales =
+  view === 'list' ? locales : Array.from(new Set([locale, ...entryLocales]));
+---
+
+{view === 'list' && <ListPage locale={locale} category={category} alternates={alternates} />}
+{view === 'article' && resolved && (
+  <ArticlePage locale={locale} resolved={resolved} alternates={alternates} availableLocales={switcherLocales} />
+)}

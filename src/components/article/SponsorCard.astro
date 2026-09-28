@@ -1,0 +1,62 @@
+---
+/**
+ * Sponsor / donation card (v1.5).
+ *
+ * Same gating contract as AdSense & Giscus (Hard Rule 11): env empty =
+ * component returns null and renders NOTHING. Off by default to preserve
+ * the Lighthouse 4×100 out-of-the-box guarantee.
+ *
+ *   PUBLIC_SPONSOR_URL       — required. Ko-fi / 爱发电 / GitHub Sponsors /
+ *                              any donation page. Empty → no card.
+ *   PUBLIC_SPONSOR_IMAGE_URL — optional QR / banner image. When set it is
+ *                              rendered beside the text (e.g. WeChat 赞赏码).
+ */
+import { Icon } from 'astro-icon/components';
+import { type Locale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+
+const sponsorUrl = import.meta.env.PUBLIC_SPONSOR_URL;
+const sponsorImage = import.meta.env.PUBLIC_SPONSOR_IMAGE_URL;
+
+// Gate: no URL = no card, no DOM, no cost.
+if (!sponsorUrl) return null;
+
+const ui = getUi(locale);
+const shared = ui.shared;
+---
+
+<aside class="mt-10 rounded-lg border border-border bg-card p-6">
+  <div class="flex flex-col items-center gap-4 sm:flex-row sm:text-left">
+    {sponsorImage && (
+      <img
+        src={sponsorImage}
+        alt={shared.sponsorTitle}
+        width="120"
+        height="120"
+        loading="lazy"
+        class="h-28 w-28 shrink-0 rounded-md border border-border object-cover"
+      />
+    )}
+    <div class="min-w-0 flex-1 text-center sm:text-left">
+      <div class="flex items-center justify-center gap-2 sm:justify-start">
+        <Icon name="lucide:heart" class="h-4 w-4 text-nav" />
+        <h2 class="text-base font-bold">{shared.sponsorTitle}</h2>
+      </div>
+      <p class="mt-1 text-sm text-muted-foreground">{shared.sponsorText}</p>
+      <a
+        href={sponsorUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="btn-primary mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm"
+      >
+        <Icon name="lucide:heart-handshake" class="h-4 w-4" />
+        {shared.sponsorButton}
+      </a>
+    </div>
+  </div>
+</aside>

@@ -1,0 +1,60 @@
+---
+/**
+ * Affiliate / outbound CTA card (v1.7) — the second monetization channel
+ * besides AdSense (Steam store links, game passes, peripherals).
+ *
+ * Zero JS, no env gating needed: it is content, authored per-article in MDX,
+ * and it only appears where the author places it.
+ *
+ * SEO-compliant by construction: rel="sponsored nofollow noopener" so
+ * affiliate links never leak link equity or trigger manual actions.
+ *
+ * Usage in MDX:
+ *   import AffiliateLink from '~/components/mdx/AffiliateLink.astro';
+ *   <AffiliateLink
+ *     url="https://store.steampowered.com/app/123"
+ *     title="Anvil Quest on Steam"
+ *     description="Free to play — supports the developer."
+ *     cta="View on Steam"
+ *   />
+ */
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  /** Destination URL (must be absolute). */
+  url: string;
+  /** Card headline. */
+  title: string;
+  /** One-line description under the title. */
+  description?: string;
+  /** Button label (default "Learn more"). */
+  cta?: string;
+  /** Mark the card as sponsored/paid partnership (honesty label). */
+  sponsored?: boolean;
+  /** Localized "Sponsored" badge text — defaults to English. */
+  sponsoredLabel?: string;
+}
+
+const { url, title, description, cta = 'Learn more', sponsored = true, sponsoredLabel = 'Sponsored' } = Astro.props;
+---
+
+<aside class="not-prose my-5 flex items-center gap-4 rounded-lg border border-nav/40 bg-nav/5 p-4">
+  <Icon name="lucide:external-link" class="h-5 w-5 shrink-0 text-nav" />
+  <div class="min-w-0 flex-1">
+    <p class="text-sm font-semibold text-foreground">
+      {title}
+      {sponsored && (
+        <span class="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {sponsoredLabel}
+        </span>
+      )}
+    </p>
+    {description && <p class="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+  </div>
+  <a
+    href={url}
+    target="_blank"
+    rel="sponsored nofollow noopener"
+    class="btn-primary shrink-0 px-3 py-1.5 text-xs"
+  >{cta}</a>
+</aside>

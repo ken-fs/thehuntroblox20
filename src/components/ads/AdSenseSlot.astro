@@ -1,0 +1,61 @@
+---
+/**
+ * AdSenseSlot — renders a single Google AdSense ad unit.
+ *
+ * Requires `PUBLIC_ADSENSE_CLIENT` (your AdSense publisher ID, e.g.
+ * ca-pub-XXXXXXXXXXXXXXXX) plus one slot ID env var per position:
+ *   - sticky   → PUBLIC_ADSENSE_SLOT_STICKY
+ *   - sidebar  → PUBLIC_ADSENSE_SLOT_SIDEBAR
+ *   - incontent→ PUBLIC_ADSENSE_SLOT_INCONTENT
+ *
+ * When client OR the position's slot ID is empty, the component renders
+ * nothing — beginners can deploy with no ads configured and the site
+ * works fine (template's out-of-box Lighthouse 4×100 contract).
+ *
+ * The AdSense loader script is injected once in BaseLayout.astro `<head>`
+ * (gated on PUBLIC_ADSENSE_CLIENT). Each slot just drops an
+ * `<ins class="adsbygoogle">` tag and pushes to the `adsbygoogle` queue.
+ *
+ * Usage:
+ *   <AdSenseSlot position="sticky" />
+ *   <AdSenseSlot position="sidebar" />
+ *   <AdSenseSlot position="incontent" />
+ */
+interface Props {
+  /** Where the ad lives — maps to a PUBLIC_ADSENSE_SLOT_* env var. */
+  position: 'sticky' | 'sidebar' | 'incontent';
+  /** Ad format: "auto" (default) or "fluid". */
+  format?: 'auto' | 'fluid';
+  /** Enable full-width responsive ads. Default true. */
+  responsive?: boolean;
+  /** Optional CSS class for layout. */
+  class?: string;
+}
+
+const positionToEnv: Record<Props['position'], string> = {
+  sticky: 'PUBLIC_ADSENSE_SLOT_STICKY',
+  sidebar: 'PUBLIC_ADSENSE_SLOT_SIDEBAR',
+  incontent: 'PUBLIC_ADSENSE_SLOT_INCONTENT',
+};
+
+const { position, format = 'auto', responsive = true, class: className = '' } = Astro.props;
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT as string | undefined;
+const slot = import.meta.env[positionToEnv[position]] as string | undefined;
+---
+
+{client && slot && (
+  <ins
+    class={`adsbygoogle ${className}`.trim()}
+    style="display:block"
+    data-ad-client={client}
+    data-ad-slot={slot}
+    data-ad-format={format}
+    data-full-width-responsive={responsive ? 'true' : 'false'}
+  />
+)}
+
+{client && slot && (
+  <script is:inline>
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+  </script>
+)}

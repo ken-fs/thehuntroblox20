@@ -1,0 +1,54 @@
+---
+/**
+ * LocaleLayout — the public shell for all [locale]/* pages.
+ *
+ * Wraps BaseLayout with the site header and footer.
+ * Pages under src/pages/[locale]/ pass their content via the default slot.
+ */
+import BaseLayout from './BaseLayout.astro';
+import SiteHeader from '~/components/header/SiteHeader.astro';
+import SiteFooter from '~/components/footer/SiteFooter.astro';
+import StickyBanner from '~/components/ads/StickyBanner.astro';
+import { type Locale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+
+interface Props {
+  locale: Locale;
+  title: string;
+  description: string;
+  alternates?: Array<{ hreflang: string; href: string }>;
+  image?: string;
+  jsonLd?: Record<string, unknown>[];
+  article?: boolean;
+  noindex?: boolean;
+  /** Locales this page exists in — passed to the language switcher (tag pages). */
+  availableLocales?: readonly Locale[];
+  /** Locale of the MAIN content (servedLocale) — fixes <html lang> on fallback pages. */
+  contentLocale?: Locale;
+  /** Real og:image dimensions (px) — forwarded to BaseLayout. */
+  ogImageWidth?: number;
+  ogImageHeight?: number;
+  /** Article dates for og article:published/modified_time — forwarded to BaseLayout. */
+  articlePublished?: Date;
+  articleModified?: Date;
+}
+const { locale, availableLocales, ...rest } = Astro.props;
+const currentPath = Astro.url.pathname;
+const shared = getUi(locale).shared;
+---
+
+<BaseLayout locale={locale} {...rest}>
+  {/* Skip-to-content — first focusable element (WCAG 2.4.1). */}
+  <a
+    href="#main"
+    class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-nav focus:shadow-md"
+  >
+    {shared.skipToContent ?? 'Skip to content'}
+  </a>
+  <SiteHeader locale={locale} currentPath={currentPath} availableLocales={availableLocales} />
+  <StickyBanner />
+  <main id="main" class="mx-auto min-h-[calc(100vh-3.5rem)] max-w-7xl px-4 py-8">
+    <slot />
+  </main>
+  <SiteFooter locale={locale} />
+</BaseLayout>

@@ -1,0 +1,12 @@
+---
+/**
+ * Recent updates — default locale (English): /recent
+ */
+import RecentPage from '~/components/article/RecentPage.astro';
+import { defaultLocale, locales } from '~/i18n/routing';
+import { languageAlternates, recentPath } from '~/lib/url';
+
+const alternates = languageAlternates((loc) => recentPath(loc), locales);
+---
+
+<RecentPage locale={defaultLocale} alternates={alternates} />

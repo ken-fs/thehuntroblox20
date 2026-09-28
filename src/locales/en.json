@@ -1,0 +1,296 @@
+{
+  "$schema": "../../docs/home.schema.json",
+  "site": {
+    "name": "The Hunt: Roblox 20 Wiki",
+    "shortName": "The Hunt: Roblox 20",
+    "description": "The Hunt: Roblox 20 complete reference: all 20 participating games, all badge rewards, grand prize winners, and the full recap of Roblox's 20th anniversary event (September 17-28, 2026).",
+    "tagline": "Every game. Every reward. Every winner.",
+    "legalNotice": "Fan-made resource. Not affiliated with Roblox Corporation."
+  },
+  "nav": {
+    "home": "Home",
+    "toggleTheme": "Toggle theme",
+    "menu": "Menu",
+    "close": "Close",
+    "search": "Search",
+    "language": "Language",
+    "games": "Games",
+    "rewards": "Rewards",
+    "guides": "Guides"
+  },
+  "search": {
+    "placeholder": "Search the wiki...",
+    "noResults": "No matches found",
+    "loadError": "Search failed to load — refresh the page and try again."
+  },
+  "shared": {
+    "lastUpdated": "Last updated",
+    "publishedOn": "Published",
+    "noArticles": "No articles yet. Check back soon!",
+    "defaultListDescription": "Browse every {title} article — walkthroughs, tips, tier lists and up-to-date reference tables, all in one place.",
+    "relatedArticles": "Related Articles",
+    "onThisPage": "On this page",
+    "browseAll": "Browse all",
+    "viewAll": "View all",
+    "commentsHeading": "Comments",
+    "share": "Share",
+    "copyLink": "Copy link",
+    "copied": "Copied!",
+    "consentText": "We use cookies for analytics and ads to keep this site free.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "consentTitle": "Cookies",
+    "bossCard": {
+      "title": "Boss Overview",
+      "hp": "HP",
+      "weakness": "Weakness",
+      "resistant": "Resistant",
+      "location": "Location",
+      "level": "Rec. Level"
+    },
+    "codesTable": {
+      "active": "Active Codes",
+      "expired": "Expired Codes",
+      "reward": "Reward",
+      "expires": "Expires",
+      "source": "Source",
+      "code": "Code"
+    },
+    "codesFaq": [
+      {
+        "question": "How do I redeem codes?",
+        "answer": "Open the game, click the settings gear in the top-right, paste your code into the Redeem Code field, and confirm. Codes are case-sensitive."
+      },
+      {
+        "question": "Why do codes stop working?",
+        "answer": "Codes expire on a schedule set by the developer (usually monthly or tied to update milestones), and some are one-per-account. This page is re-tested regularly."
+      },
+      {
+        "question": "How often are new codes released?",
+        "answer": "New codes typically arrive with each major game update. Bookmark this page and check back after every patch."
+      },
+      {
+        "question": "Do codes expire?",
+        "answer": "Yes — most codes have an expiry date, shown next to each code. Expired codes move to the expired table below."
+      }
+    ],
+    "possiblyOutdated": "This guide was last checked on",
+    "outdatedNote": "— the game may have changed since. Some details could be out of date.",
+    "prevArticle": "Previous",
+    "nextArticle": "Next",
+    "minuteRead": "min read",
+    "wasThisHelpful": "Was this helpful?",
+    "feedbackThanks": "Thanks for the feedback!",
+    "sponsoredLabel": "Sponsored",
+    "relatedVideos": "Related videos",
+    "gallery": "Gallery",
+    "gameVersion": "Game version",
+    "allTags": "All Tags",
+    "tagsIndexDescription": "Browse all articles by topic.",
+    "articlesCount": "articles",
+    "recentTitle": "Recent Updates",
+    "recentDescription": "The latest articles and updates across the wiki, newest first.",
+    "sponsorTitle": "Support this wiki",
+    "sponsorText": "If these guides helped you, consider supporting the site.",
+    "sponsorButton": "Support us",
+    "notFoundSearchHint": "Try searching the wiki instead.",
+    "notFoundPopular": "Popular pages",
+    "galleryLabels": {
+      "close": "Close",
+      "prev": "Previous image",
+      "next": "Next image"
+    },
+    "quickAnswer": "Quick Answer",
+    "skipToContent": "Skip to content",
+    "tapToCopy": "Tap to copy",
+    "open": "Open",
+    "playVideo": "Play video",
+    "watchVideo": "Watch video",
+    "gameTrailer": "trailer",
+    "closeAd": "Close ad",
+    "adLabel": "Advertisement",
+    "codesFaqTitle": "Codes FAQ",
+    "faqTitle": "FAQ",
+    "toggleTheme": "Toggle theme",
+    "themeToggleTitle": "Light / Dark / AMOLED black",
+    "fallbackNotice": "English fallback",
+    "copyQuickAnswer": "Copy quick answer",
+    "feedbackYes": "Yes",
+    "feedbackNo": "No",
+    "breadcrumbAria": "Breadcrumb",
+    "paginationAria": "Article pagination"
+  },
+  "overview": {
+    "games": {
+      "overviewTitle": "All 20 Games",
+      "overviewDescription": "Every participating game in The Hunt: Roblox 20 — one per year from 2006 to 2025 — with quest walkthroughs, secret rewards and rarity data."
+    },
+    "rewards": {
+      "overviewTitle": "All Rewards",
+      "overviewDescription": "Every reward from The Hunt: Roblox 20: 40 quest prizes, grand prizes, marketplace items and join-year badges, with official earn counts."
+    },
+    "guides": {
+      "overviewTitle": "All Guides",
+      "overviewDescription": "Event guides for The Hunt: Roblox 20: the full recap, winner tracking, secret quest walkthroughs and post-event answers."
+    }
+  },
+  "home": {
+    "meta": {
+      "title": "The Hunt: Roblox 20 Wiki — All 20 Games, Every Reward & Winners",
+      "description": "The Hunt: Roblox 20 complete reference: all 20 participating games, all badge rewards, grand prize winners, and the full recap of Roblox's 20th anniversary event (September 17-28, 2026)."
+    },
+    "updates": {
+      "title": "Recent updates"
+    },
+    "popular": {
+      "badge": "Popular",
+      "title": "Most read",
+      "quickLinks": [
+        {
+          "label": "All 20 games",
+          "href": "/games"
+        },
+        {
+          "label": "All rewards",
+          "href": "/rewards"
+        },
+        {
+          "label": "Winners",
+          "href": "/guides/winners/"
+        }
+      ]
+    },
+    "closingCta": {
+      "title": "The hunt is over — the record stays",
+      "description": "Bookmark this wiki: we keep the Dominus watch, the rarity tables and the walkthrough archive updated.",
+      "primary": "Browse all games",
+      "secondary": "Read the recap"
+    },
+    "hero": {
+      "badge": "Fan-made event archive",
+      "title": "The Hunt: Roblox 20",
+      "description": "Roblox’s 20th anniversary event ran September 17–28, 2026. All 20 games, all 90+ rewards, the final puzzle, and the unwon Dominus — fully documented.",
+      "ctaPrimary": "Visit the event hub",
+      "ctaSecondary": "Browse rewards",
+      "videoId": "RQuGNvrqrCA"
+    },
+    "start": {
+      "badge": "Quick start",
+      "title": "Jump straight in",
+      "cards": [
+        {
+          "number": "1",
+          "title": "The 20 games",
+          "description": "One per year, 2006–2025",
+          "icon": "lucide:gamepad-2",
+          "href": "/games/"
+        },
+        {
+          "number": "2",
+          "title": "The rewards",
+          "description": "90+ items, all counted",
+          "icon": "lucide:gift",
+          "href": "/rewards/all-rewards/"
+        },
+        {
+          "number": "3",
+          "title": "The winners",
+          "description": "Dominus watch: live",
+          "icon": "lucide:trophy",
+          "href": "/guides/winners/"
+        }
+      ]
+    },
+    "explore": {
+      "title": "Explore",
+      "description": "The essentials",
+      "modules": [
+        {
+          "order": 1,
+          "name": "Grand prizes",
+          "description": "Dominus & Amictus Infinitum",
+          "href": "/rewards/grand-prizes/",
+          "displayType": "badge-list",
+          "highlights": [
+            {
+              "label": "Dominus Infinitum",
+              "detail": "0 awarded — unwon as of Sept 29",
+              "badge": "HOT"
+            },
+            {
+              "label": "Amictus Infinitum",
+              "detail": "143,591 puzzle-solvers",
+              "badge": "FINAL"
+            }
+          ]
+        },
+        {
+          "order": 2,
+          "name": "Secret quests",
+          "description": "All 20 hidden walkthroughs",
+          "href": "/guides/secret-quests/",
+          "displayType": "badge-list",
+          "highlights": [
+            {
+              "label": "How To Build A Happy Home",
+              "detail": "Rarest: 196,968 earns",
+              "badge": "RARE"
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "name": "Post-event FAQ",
+          "description": "What you can still get",
+          "href": "/guides/can-you-still-get-items/",
+          "displayType": "badge-list",
+          "highlights": [
+            {
+              "label": "Event ended Sept 28",
+              "detail": "Earned items stay forever",
+              "badge": "FAQ"
+            }
+          ]
+        }
+      ]
+    },
+    "faq": {
+      "title": "FAQ",
+      "description": "Common questions",
+      "items": [
+        {
+          "question": "Can you still get The Hunt: Roblox 20 items?",
+          "answer": "No — all 40 quests closed when the event ended on September 28, 2026. Items already earned stay in inventories forever; the limited-unique Shedletsekkar is the only piece that can still change hands."
+        },
+        {
+          "question": "Who won the Dominus Infinitum?",
+          "answer": "Nobody yet, publicly: the official badge showed zero awards the day after the event. Roblox has not announced recipients — we track the badge counter on the winners page."
+        },
+        {
+          "question": "How many rewards did the event have?",
+          "answer": "Over 90: 20 main quest prizes, 20 secret prizes, 2 grand prizes, 3 launcher items, 3 Roblox Plus perks, 21 join-year badges and 11 marketplace items."
+        },
+        {
+          "question": "What were the event dates?",
+          "answer": "September 17–28, 2026 (Plus early access from September 14; final puzzle unlocked September 27)."
+        }
+      ]
+    }
+  },
+  "footer": {
+    "playGame": "Play Anvil Quest",
+    "officialDiscord": "Official Discord",
+    "officialYoutube": "Official YouTube",
+    "officialTwitter": "Official Twitter",
+    "officialReddit": "Official Reddit",
+    "about": "About",
+    "faq": "FAQ",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "copyright": "Copyright",
+    "contact": "Contact",
+    "copyrightText": "© 2026 The Hunt: Roblox 20 Wiki. All rights reserved.",
+    "community": "Community",
+    "legal": "Legal"
+  }
+}

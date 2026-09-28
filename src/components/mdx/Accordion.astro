@@ -1,0 +1,33 @@
+---
+/**
+ * Collapsible panel — native <details>, zero JS. Use for multi-phase boss
+ * strategies, spoiler content, or per-platform differences inside MDX:
+ *
+ *   import Accordion from '~/components/mdx/Accordion.astro';
+ *   <Accordion title="Phase 2 (below 50% HP)">…</Accordion>
+ *   <Accordion title="Spoiler" open={false}>…</Accordion>
+ */
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  /** Always-visible summary line. */
+  title: string;
+  /** Start expanded (default collapsed). */
+  open?: boolean;
+}
+
+const { title, open = false } = Astro.props;
+---
+
+<details class="not-prose my-4 group rounded-lg border border-border bg-card" open={open}>
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+    {title}
+    <Icon
+      name="lucide:chevron-down"
+      class="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+    />
+  </summary>
+  <div class="border-t border-border px-4 py-3 text-sm text-foreground">
+    <slot />
+  </div>
+</details>

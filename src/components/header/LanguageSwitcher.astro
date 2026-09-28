@@ -1,0 +1,58 @@
+---
+/**
+ * Language switcher — a dropdown built with native <details> (zero JS).
+ * Renders the current locale and links to the same page in other locales.
+ */
+import { Icon } from 'astro-icon/components';
+import { locales, LOCALE_LABELS, type Locale } from '~/i18n/routing';
+import { landingLinkEnabled, zhLandingLink } from '~/config/project';
+
+interface Props {
+  locale: Locale;
+  /** Function that returns the path for a given locale (same page, different lang). */
+  pathFor: (locale: Locale) => string;
+  /**
+   * Locales this page actually exists in (optional). Tag pages don't fall
+   * back to English, so they pass their real coverage — a locale without
+   * the tag is omitted instead of linking to a 404.
+   */
+  availableLocales?: readonly Locale[];
+}
+const { locale, pathFor, availableLocales } = Astro.props;
+const switchLocales = availableLocales ?? locales;
+---
+
+<details class="relative">
+  <summary
+    class="inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-muted"
+  >
+    <Icon name="lucide:globe" class="h-4 w-4" />
+    <span>{LOCALE_LABELS[locale]}</span>
+    <Icon name="lucide:chevron-down" class="h-3 w-3" />
+  </summary>
+  <div class="absolute right-0 z-50 mt-2 w-40 overflow-hidden rounded-md border bg-card shadow-lg">
+    {
+      switchLocales.map((loc) => (
+        <a
+          href={pathFor(loc)}
+          class:list={[
+            'block px-3 py-2 text-sm transition hover:bg-muted',
+            loc === locale && 'font-semibold text-nav',
+          ]}
+        >
+          {LOCALE_LABELS[loc]}
+        </a>
+      ))
+    }
+    {
+      landingLinkEnabled && (
+        <a
+          href={zhLandingLink.href}
+          class="block border-t border-border px-3 py-2 text-sm text-muted-foreground transition hover:bg-muted hover:text-nav"
+        >
+          {zhLandingLink.label}
+        </a>
+      )
+    }
+  </div>
+</details>

@@ -1,0 +1,123 @@
+---
+/**
+ * List page — shows all articles in a category for a locale.
+ *
+ * Behavior (PRD §9.3): does NOT fall back to English. If the locale has
+ * no articles in this category, the empty state is shown.
+ */
+import { Icon } from 'astro-icon/components';
+import LocaleLayout from '~/components/layout/LocaleLayout.astro';
+import ArticleCover from '~/components/article/ArticleCover.astro';
+import { NAVIGATION_CONFIG } from '~/config/navigation';
+import { type Locale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+import { getEntriesByCategory, parseEntryId } from '~/lib/content';
+import { itemListJsonLd, pageTitle, simpleBreadcrumbJsonLd } from '~/lib/seo';
+import { detailPath, homeUrl, listPath } from '~/lib/url';
+
+interface Props {
+  locale: Locale;
+  category: string;
+  /** hreflang alternates (built by the route page). */
+  alternates?: Array<{ hreflang: string; href: string }>;
+}
+const { locale, category, alternates = [] } = Astro.props;
+const ui = getUi(locale);
+const nav = ui.nav as Record<string, string>;
+const shared = ui.shared;
+const overview = (
+  ui.overview as Record<string, { overviewTitle: string; overviewDescription: string }>
+)[category];
+const navItem = NAVIGATION_CONFIG.find((n) => n.key === category);
+
+const title = overview?.overviewTitle ?? nav[category] ?? category;
+// Localized default (locale JSON shared.defaultListDescription) — a hardcoded
+// English sentence here would leak into every locale the moment a fork adds
+// a 5th category without an overview entry.
+const description =
+  overview?.overviewDescription ??
+  String(shared.defaultListDescription ?? '').replace('{title}', title) ??
+  `${title}`;
+
+const entries = await getEntriesByCategory(category, locale);
+
+const jsonLd = [
+  // Empty ItemList (itemListElement: []) is invalid structured data — only
+  // inject when the list actually has entries (breadcrumb stays either way).
+  ...(entries.length > 0
+    ? [
+        itemListJsonLd({
+          category,
+          categoryLabel: title,
+          locale,
+          items: entries.map((e) => {
+            const slug = parseEntryId(e.id)?.slug ?? '';
+            return { title: e.data.title, slug };
+          }),
+        }),
+      ]
+    : []),
+  simpleBreadcrumbJsonLd({
+    pageLabel: title,
+    path: listPath(category, locale),
+    locale,
+    homeLabel: nav.home,
+  }),
+];
+---
+
+<!-- An empty list is a ~100-word thin-content page (NMS /starships was indexed
+     as one). noindex keeps it out of Google until real articles exist; the
+     sitemap filter excludes the same paths (astro.config.ts). -->
+<LocaleLayout
+  locale={locale}
+  title={pageTitle(title)}
+  description={description}
+  alternates={alternates}
+  jsonLd={jsonLd}
+  noindex={entries.length === 0}
+>
+  <div class="space-y-6">
+    <header>
+      <nav class="text-sm text-muted-foreground" aria-label="breadcrumb">
+        <a href={homeUrl(locale)} class="hover:text-nav">{nav.home}</a>
+        <span class="mx-1">/</span>
+        <span class="text-foreground">{title}</span>
+      </nav>
+      <div class="mt-2 flex items-center gap-3">
+        {navItem && <Icon name={navItem.icon} class="h-7 w-7 text-nav" />}
+        <h1 class="text-3xl font-extrabold tracking-tight">{title}</h1>
+      </div>
+      <p class="mt-2 max-w-2xl text-muted-foreground">{description}</p>
+    </header>
+
+    {
+      entries.length === 0 ? (
+        <div class="rounded-lg border border-dashed bg-card p-12 text-center">
+          <Icon name="lucide:inbox" class="mx-auto h-10 w-10 text-muted-foreground" />
+          <p class="mt-3 text-muted-foreground">{shared.noArticles}</p>
+        </div>
+      ) : (
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {entries.map((entry) => {
+            const slug = parseEntryId(entry.id)?.slug ?? '';
+            return (
+              <a href={detailPath(category, slug, locale)} class="card p-5">
+                {entry.data.image && <ArticleCover src={entry.data.image} />}
+                <h2 class="font-semibold leading-snug">{entry.data.title}</h2>
+                <p class="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                  {entry.data.description}
+                </p>
+                <p class="mt-3 text-xs text-muted-foreground">
+                  {entry.data.lastModified
+                    ? `${shared.lastUpdated}: ${entry.data.lastModified.toLocaleDateString(locale, { timeZone: 'UTC' })}`
+                    : `${shared.publishedOn}: ${entry.data.date.toLocaleDateString(locale, { timeZone: 'UTC' })}`}
+                </p>
+              </a>
+            );
+          })}
+        </div>
+      )
+    }
+  </div>
+</LocaleLayout>

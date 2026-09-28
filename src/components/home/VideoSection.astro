@@ -1,0 +1,27 @@
+---
+/**
+ * VideoSection — embeds a YouTube trailer/gameplay video right below the Hero.
+ *
+ * Per design: the video module must sit immediately after the Hero region.
+ * The video ID comes from the locale JSON `home.hero.videoId`.
+ *
+ * Player core lives in ~/components/video/LazyYouTube.astro (shared with the
+ * MDX inline <Video> component).
+ */
+import LazyYouTube from '~/components/video/LazyYouTube.astro';
+
+interface Props {
+  /** YouTube video ID (from home.hero.videoId). */
+  videoId?: string;
+  /** Title for accessibility + the play button overlay. */
+  title?: string;
+}
+const { videoId, title = 'Watch trailer' } = Astro.props;
+---
+{videoId && (
+  <section class="border-b border-border">
+    <div class="mx-auto max-w-4xl px-4 py-8">
+      <LazyYouTube videoId={videoId} title={title} />
+    </div>
+  </section>
+)}

@@ -1,0 +1,89 @@
+---
+/**
+ * CodeBlock — a one-tap copy box for game codes.
+ *
+ * The #1 reader action on codes pages is "copy → switch to game → paste".
+ * This component makes the whole code a single tap target with a Copied!
+ * confirmation. Use it inside MDX:
+ *
+ *   import CodeBlock from '~/components/article/CodeBlock.astro';
+ *
+ *   <CodeBlock code="FORGE-2026" label="Active — +200 Gold" />
+ *
+ * Pure vanilla JS (clipboard API), supports multiple instances per page.
+ */
+import { currentSharedStrings } from '~/lib/shared-ui';
+
+interface Props {
+  /** The code itself — the whole string is the copy target. */
+  code: string;
+  /** Optional context line (e.g. "Active — expires Aug 31" or reward text). */
+  label?: string;
+  /** Copied feedback text; locale-aware when passed from a translated page. */
+  copiedText?: string;
+  /** Persistent hint next to the code; locale-aware from the page. */
+  hint?: string;
+}
+// Locale defaults come from Astro.currentLocale so MDX-authored instances
+// (which can't receive page props) still localize on translated pages.
+const pageShared = currentSharedStrings(Astro.currentLocale);
+const {
+  code,
+  label,
+  copiedText = pageShared.copied ?? 'Copied!',
+  hint = pageShared.tapToCopy ?? 'Tap to copy',
+} = Astro.props;
+---
+
+<div
+  class="not-prose flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+  data-codeblock
+  data-code={code}
+  data-copied={copiedText}
+>
+  <button
+    type="button"
+    class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+
+  >
+    <span
+      class="shrink-0 rounded-md bg-muted px-3 py-1.5 font-mono text-sm font-semibold tracking-wider text-foreground"
+    >
+      {code}
+    </span>
+    {label && <span class="truncate text-sm text-muted-foreground">{label}</span>}
+  </button>
+  <span
+    class="shrink-0 text-xs font-medium text-muted-foreground transition"
+    data-codeblock-hint
+    data-hint-original={hint}
+  >
+    {hint}
+  </span>
+</div>
+
+<script>
+  (() => {
+    document.querySelectorAll<HTMLElement>('[data-codeblock]').forEach((box) => {
+      const code = box.getAttribute('data-code') ?? '';
+      const copied = box.getAttribute('data-copied') ?? 'Copied!';
+      const hint = box.querySelector<HTMLElement>('[data-codeblock-hint]');
+      box.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          if (hint) {
+            const original = hint.getAttribute('data-hint-original') ?? hint.textContent;
+            hint.textContent = copied;
+            hint.classList.add('text-nav');
+            setTimeout(() => {
+              hint.textContent = original;
+              hint.classList.remove('text-nav');
+            }, 1500);
+          }
+        } catch {
+          // Clipboard unavailable — no-op.
+        }
+      });
+    });
+  })();
+</script>

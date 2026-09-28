@@ -1,0 +1,71 @@
+---
+/**
+ * Global 404 page.
+ * Rendered with default locale (English) since 404s have no locale context.
+ *
+ * v1.5: recovery-first design — the Pagefind search dialog (lazy-loaded,
+ * zero JS until open) plus category entry points convert a lost visit into
+ * a search or a browse instead of a bounce.
+ */
+import BaseLayout from '~/components/layout/BaseLayout.astro';
+import SearchButton from '~/components/header/SearchButton.astro';
+import { Icon } from 'astro-icon/components';
+import { site } from '~/config/site';
+import { NAVIGATION_CONFIG } from '~/config/navigation';
+import { defaultLocale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+import { listPath } from '~/lib/url';
+
+const ui = getUi(defaultLocale);
+const nav = ui.nav as Record<string, string>;
+const shared = ui.shared;
+---
+
+<BaseLayout
+  locale={defaultLocale}
+  title="404 - Page Not Found"
+  description="The page you are looking for does not exist."
+>
+  <div
+    class="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 text-center"
+  >
+    <Icon name="lucide:compass" class="h-16 w-16 text-nav" />
+    <h1 class="mt-6 text-6xl font-extrabold">404</h1>
+    <p class="mt-2 text-lg font-semibold">Page Not Found</p>
+    <p class="mt-1 text-sm text-muted-foreground">
+      The page you are looking for might have been removed or is temporarily unavailable.
+    </p>
+
+    <div class="mt-6 flex items-center gap-3">
+      <div class="inline-flex items-center rounded-md border border-border bg-card">
+        <span class="pl-3 text-sm text-muted-foreground" aria-hidden="true">
+          <Icon name="lucide:search" class="h-4 w-4" />
+        </span>
+        <SearchButton locale={defaultLocale} />
+      </div>
+      <a href="/" class="btn-primary">
+        <Icon name="lucide:home" class="mr-2 h-4 w-4" />
+        Back to {site.shortName}
+      </a>
+    </div>
+    <p class="mt-3 text-xs text-muted-foreground">{shared.notFoundSearchHint}</p>
+
+    <div class="mt-10 w-full">
+      <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {shared.notFoundPopular}
+      </p>
+      <div class="mt-3 flex flex-wrap justify-center gap-2">
+        {
+          NAVIGATION_CONFIG.map((item) => (
+            <a href={listPath(item.key, defaultLocale)} class="card px-4 py-2 text-sm">
+              <span class="inline-flex items-center gap-1.5">
+                <Icon name={item.icon} class="h-4 w-4 text-nav" />
+                {nav[item.key] ?? item.key}
+              </span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</BaseLayout>

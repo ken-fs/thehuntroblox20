@@ -1,0 +1,57 @@
+name: 'AnvilWiki quality gates'
+description: >-
+  The eight validation gates shared by CI and the content pipeline. Every gate
+  can fail the run — a draft PR from the pipeline is only created after all
+  eight pass, and CI blocks on the same definition, so the two paths verify
+  content with the exact same standard — no drift between the workflows.
+inputs:
+  site-url:
+    description: 'SITE_URL for the build step (CI passes vars.SITE_URL; falls back to the demo domain).'
+    required: false
+    default: 'https://anvil.wiki'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Lint
+      run: pnpm lint
+      shell: bash
+
+    - name: Typecheck
+      run: pnpm typecheck
+      shell: bash
+
+    - name: Test
+      run: pnpm test
+      shell: bash
+
+    - name: Config consistency (nav/locale 3-place check)
+      run: pnpm check-config
+      shell: bash
+      env:
+        # Forks that dropped wrangler.toml (Workers-style wrangler.jsonc +
+        # build-command SITE_URL): check-config needs the env directly.
+        SITE_URL: ${{ inputs.site-url }}
+
+    - name: Build
+      run: pnpm build
+      shell: bash
+      env:
+        # FORKS: set a repository variable SITE_URL (Settings → Secrets and
+        # variables → Actions → Variables) to your domain — otherwise CI
+        # falls back to the demo domain and the built canonical/sitemap
+        # point at the wrong site (production builds use wrangler.toml,
+        # which this does not affect).
+        SITE_URL: ${{ inputs.site-url }}
+
+    - name: Content lint (H1/alt/slashes)
+      run: pnpm check-content
+      shell: bash
+
+    - name: Internal link audit (dist/)
+      run: pnpm check-links
+      shell: bash
+
+    - name: i18n UI key coverage (gate)
+      run: pnpm check-i18n --strict-ui
+      shell: bash

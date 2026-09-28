@@ -1,0 +1,13 @@
+---
+/**
+ * Tag index — default locale (English, no prefix): /tags
+ * Non-default locales: src/pages/[locale]/tags/index.astro
+ */
+import TagsIndexPage from '~/components/article/TagsIndexPage.astro';
+import { defaultLocale, locales } from '~/i18n/routing';
+import { languageAlternates, tagsPath } from '~/lib/url';
+
+const alternates = languageAlternates((loc) => tagsPath(loc), locales);
+---
+
+<TagsIndexPage locale={defaultLocale} alternates={alternates} />

@@ -1,0 +1,673 @@
+---
+/**
+ * Search command palette — Pagefind offline search (PRD §14.2 v1.2).
+ *
+ * Design: a focused command-palette modal (Cmd+K pattern), not a generic
+ * search box. Visual language matches the shadcn-style token system:
+ *   - backdrop: dim + blur (focus the modal)
+ *   - surface:  --card with soft shadow, rounded-xl
+ *   - input:    large, borderless, sits in a header row with the search icon
+ *   - results:  tight list, hover-highlight row, theme-colored marks
+ *
+ * Behavior:
+ *   - Header button + Ctrl/Cmd+K opens the <dialog> (native, zero runtime).
+ *   - pagefind-ui.js lazy-loads on first open (not in initial bundle).
+ *   - Escape closes (native <dialog>).
+ *
+ * All UI text from JSON (Hard Rule 1): search.{placeholder, noResults} + nav.search.
+ */
+import { Icon } from 'astro-icon/components';
+import { defaultLocale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+
+interface Props {
+  /**
+   * Wiki locale for default UI strings (getUi falls back to English for
+   * unknown codes). Landing-only locales (zh) aren't in routing.ts, so the
+   * docs center passes explicit `labels` instead of relying on the fallback.
+   */
+  locale?: string;
+  /** String overrides for non-wiki locales (see locale note above). */
+  labels?: {
+    trigger?: string;
+    placeholder?: string;
+    noResults?: string;
+    close?: string;
+    loadError?: string;
+  };
+  /**
+   * 'icon' (default) = compact header icon button (wiki SiteHeader).
+   * 'field' = prominent search pill for the docs-center header, placed
+   * right after the brand: grows with flex, shows the placeholder text
+   * (sm+) and a ⌘K hint (md+); icon-only below sm.
+   */
+  variant?: 'icon' | 'field';
+}
+const { locale = defaultLocale, labels, variant = 'icon' } = Astro.props;
+const ui = getUi(locale);
+const search = ui.search as Record<string, string>;
+const nav = ui.nav as Record<string, string>;
+const btnLabel = labels?.trigger ?? nav.search ?? 'Search';
+const noResults = labels?.noResults ?? search.noResults ?? 'No matches found';
+const placeholder = labels?.placeholder ?? search.placeholder ?? 'Search...';
+const closeLabel = labels?.close ?? nav.close ?? 'Close';
+const loadError = labels?.loadError ?? search.loadError ?? 'Search failed to load — refresh and try again.';
+---
+
+{/* Trigger button — icon variant matches the wiki SiteHeader look;
+    field variant is the docs-center search pill. */}
+<button
+  id="search-trigger"
+  type="button"
+  aria-label={btnLabel}
+  title={btnLabel}
+  class:list={[
+    variant === 'field'
+      ? 'hidden h-9 items-center justify-center gap-2 rounded-md border border-border bg-muted/40 text-muted-foreground transition hover:border-nav/40 hover:text-nav sm:inline-flex sm:w-auto sm:min-w-0 sm:flex-1 sm:justify-start sm:px-3 sm:max-w-xs'
+      : 'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-muted',
+  ]}
+>
+  <Icon name="lucide:search" class="h-5 w-5 shrink-0" />
+  {
+    variant === 'field' && (
+      <>
+        <span class="hidden min-w-0 flex-1 truncate text-left text-sm sm:inline">
+          {placeholder}
+        </span>
+        <kbd class="hidden shrink-0 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] font-medium md:inline">
+          ⌘K
+        </kbd>
+      </>
+    )
+  }
+</button>
+
+{/* Command palette modal */}
+<dialog id="search-modal" aria-label={btnLabel}>
+  <div class="search-shell">
+    {/* Pagefind mounts its UI inside this container; if that ever fails
+        (very old kernel) the inline script writes the load-error text here
+        instead of leaving a mysteriously empty dialog. */}
+    <div
+      id="search-modal-inner"
+      data-pagefind-ui
+      data-no-results={noResults}
+      data-placeholder={placeholder}
+      data-load-error={loadError}
+    ></div>
+
+    {/* Footer hint bar — keyboard shortcuts + branding */}
+    <footer class="search-footer">
+      <div class="search-footer-hints">
+        <span class="hint">
+          <kbd>Esc</kbd>
+          {closeLabel}
+        </span>
+        <span class="hint-divider">·</span>
+        <span class="hint">
+          <kbd>↵</kbd>
+          {btnLabel}
+        </span>
+      </div>
+      <span class="search-footer-brand">
+        <Icon name="lucide:zap" class="h-3 w-3" />
+        Powered by Pagefind
+      </span>
+    </footer>
+  </div>
+</dialog>
+
+<style>
+  /* ------------------------------------------------------------------ */
+  /* 1. Modal shell — the native <dialog>                               */
+  /* ------------------------------------------------------------------ */
+  #search-modal {
+    /* position:fixed + explicit insets keep the dialog a full overlay even in
+       browsers without <dialog>.showModal() (old in-app webviews), where an
+       open dialog would otherwise render in-flow inside the 56px header row —
+       invisible, i.e. "tapping search does nothing". */
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 300;
+    width: min(640px, 92vw);
+    max-width: 92vw;
+    padding: 0;
+    margin: 10vh auto auto;
+    border: none;
+    border-radius: 16px;
+    background: transparent;
+    box-shadow:
+      0 0 0 1px hsl(var(--border)),
+      0 24px 48px -12px hsl(0 0% 0% / 0.25),
+      0 8px 24px -8px hsl(0 0% 0% / 0.15);
+    overflow: hidden;
+  }
+  /* When the dialog is open, lock body scroll so wheel events inside the
+     results list don't scroll the page behind the modal. */
+  :global(body:has(#search-modal[open])) {
+    overflow: hidden;
+  }
+  #search-modal::backdrop {
+    background: hsl(0 0% 0% / 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .search-shell {
+    display: flex;
+    flex-direction: column;
+    max-height: 75vh;
+    background: hsl(var(--card));
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 2. Pagefind UI — FULL style takeover                               */
+  /* pagefind-ui.css ships Svelte-scoped rules with a hash suffix that   */
+  /* changes after Astro's build, so its scoped styles silently no-op.  */
+  /* We treat pagefind-ui as unstyled markup and define every rule here.*/
+  /* ------------------------------------------------------------------ */
+
+  /* Root container */
+  :global(#search-modal-inner .pagefind-ui) {
+    --pagefind-ui-primary: hsl(var(--brand-text));
+    --pagefind-ui-text: hsl(var(--foreground));
+    --pagefind-ui-background: hsl(var(--card));
+    --pagefind-ui-border: hsl(var(--border));
+    --pagefind-ui-scale: 0.75;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    font-family: inherit !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+  }
+  /* The Svelte reset wrapper — neutralize its reset but keep it as a flex child */
+  :global(#search-modal-inner .pagefind-ui--reset) {
+    /* Do NOT use `all: unset` — that breaks flex layout. Just let it inherit. */
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Search form — the input header bar.
+     Pagefind nests the results drawer INSIDE the <form>. We use
+     flex-wrap:wrap so input+button stay on row 1 and the drawer (width:100%)
+     drops to row 2. The form itself is flex:1 of the pagefind-ui column. */
+  :global(#search-modal .pagefind-ui__form) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 0 20px !important;
+    margin: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid hsl(var(--border)) !important;
+    background: transparent !important;
+    align-content: start !important;
+  }
+  :global(#search-modal .pagefind-ui__form svg) {
+    width: 18px !important;
+    height: 18px !important;
+    flex-shrink: 0 !important;
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* Input row border separator is on the form itself (above). */
+
+  /* Drawer holds all results — width:100% forces it to wrap to a new row
+     below the input. flex-basis:100% + min-height:0 + overflow:hidden
+     constrains the scrollable results-area inside. */
+  :global(#search-modal .pagefind-ui__drawer) {
+    display: block !important;
+    width: 100% !important;
+    flex-basis: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    /* Take remaining form height after the input row */
+    flex-grow: 1 !important;
+  }
+
+  /* Input — large, borderless, header-style */
+  :global(#search-modal .pagefind-ui__search-input) {
+    flex: 1 !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 18px 4px !important;
+    margin: 0 !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+    color: hsl(var(--foreground)) !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -webkit-appearance: none !important;
+  }
+  :global(#search-modal .pagefind-ui__search-input::placeholder) {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* Clear button */
+  :global(#search-modal .pagefind-ui__search-clear) {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 6px 10px !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: hsl(var(--muted-foreground)) !important;
+    cursor: pointer !important;
+    transition: all 0.15s !important;
+  }
+  :global(#search-modal .pagefind-ui__search-clear:hover) {
+    color: hsl(var(--foreground)) !important;
+    background: hsl(var(--muted)) !important;
+  }
+
+  /* Results container — the only scrollable element.
+     We bypass the flex chain (pagefind-ui → form → drawer → results-area)
+     because Pagefind nests the drawer INSIDE the form, and flex-wrap:wrap
+     does not propagate height constraints to wrapped rows. Instead, bind
+     the max-height directly to the viewport so this element always scrolls
+     regardless of ancestor flex contexts. */
+  :global(#search-modal .pagefind-ui__results-area) {
+    overflow-y: auto !important;
+    /* 75vh (search-shell) − ~58px input − ~40px footer − ~12px padding */
+    max-height: calc(75vh - 120px) !important;
+    padding: 6px !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  :global(#search-modal .pagefind-ui__results-area::-webkit-scrollbar) {
+    width: 6px;
+  }
+  :global(#search-modal .pagefind-ui__results-area::-webkit-scrollbar-thumb) {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  :global(#search-modal .pagefind-ui__results) {
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* "N results" message */
+  :global(#search-modal .pagefind-ui__message) {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: hsl(var(--muted-foreground)) !important;
+    padding: 8px 12px !important;
+    margin: 0 0 4px 0 !important;
+    /* Truncate absurdly long queries so they don't break layout */
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* Each result row */
+  :global(#search-modal .pagefind-ui__result) {
+    display: block !important;
+    list-style: none !important;
+    padding: 10px 12px !important;
+    margin: 0 0 2px 0 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    transition: background 0.12s ease !important;
+  }
+  :global(#search-modal .pagefind-ui__result:hover) {
+    background: hsl(var(--muted)) !important;
+  }
+
+  :global(#search-modal .pagefind-ui__result-inner) {
+    display: block !important;
+    margin: 0 !important;
+  }
+
+  :global(#search-modal .pagefind-ui__result-thumb),
+  :global(#search-modal .pagefind-ui__result-image) {
+    display: none !important;
+  }
+
+  /* Result title */
+  :global(#search-modal .pagefind-ui__result-title) {
+    display: block !important;
+    margin: 0 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
+  }
+  :global(#search-modal .pagefind-ui__result-title .pagefind-ui__result-link) {
+    color: hsl(var(--foreground)) !important;
+    text-decoration: none !important;
+    transition: color 0.12s !important;
+  }
+  :global(#search-modal .pagefind-ui__result:hover .pagefind-ui__result-link) {
+    color: hsl(var(--brand-text)) !important;
+  }
+
+  /* Excerpt */
+  :global(#search-modal .pagefind-ui__result-excerpt) {
+    display: block !important;
+    margin: 3px 0 0 0 !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* Highlight mark */
+  :global(#search-modal mark) {
+    background: hsl(var(--brand) / 0.14) !important;
+    color: hsl(var(--brand-text)) !important;
+    border-radius: 3px !important;
+    padding: 1px 3px !important;
+    font-weight: 600 !important;
+  }
+
+  /* Nested sub-results */
+  :global(#search-modal .pagefind-ui__result-nested) {
+    margin: 6px 0 0 0 !important;
+    padding: 4px 0 4px 12px !important;
+    border-left: 2px solid hsl(var(--border)) !important;
+  }
+  :global(#search-modal .pagefind-ui__result-nested .pagefind-ui__result-title) {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+  }
+  :global(#search-modal .pagefind-ui__result-nested .pagefind-ui__result-excerpt) {
+    font-size: 12px !important;
+  }
+  :global(#search-modal .pagefind-ui__result-tags) {
+    margin-top: 6px !important;
+    font-size: 11px !important;
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  :global(#search-modal .pagefind-ui__result-tag) {
+    color: hsl(var(--brand-text)) !important;
+    font-weight: 500 !important;
+  }
+
+  /* Loading skeleton */
+  :global(#search-modal .pagefind-ui__loading) {
+    border-radius: 4px !important;
+    opacity: 0.4 !important;
+  }
+
+  /* Mount-failure message (written by the inline script when Pagefind can't
+     load — JS-created node, hence the global selector). */
+  :global(#search-modal-inner .pagefind-load-error) {
+    padding: 32px 24px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.6;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 3. Footer                                                          */
+  /* ------------------------------------------------------------------ */
+  .search-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--muted) / 0.35);
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+  }
+  .search-footer-hints {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .hint kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 4px;
+    background: hsl(var(--background));
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    line-height: 1;
+  }
+  .hint-divider {
+    opacity: 0.4;
+  }
+  .search-footer-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.6;
+    font-size: 11px;
+  }
+</style>
+
+<script is:inline>
+  /* Deliberately ES2018-only syntax (no optional chaining, no nullish
+     coalescing): this runs untranspiled in the HTML, and old in-app webviews
+     (WeChat X5, pre-15.4 iOS) would throw a SyntaxError and leave search
+     completely dead — "tapping search does nothing". Also binds
+     [data-open-search] buttons DIRECTLY (mobile search bar / menu entries)
+     instead of proxying through a click on the hidden #search-trigger. */
+  (() => {
+    const modal = document.getElementById('search-modal');
+    if (!modal) return;
+    const trigger = document.getElementById('search-trigger');
+
+    let pagefindLoaded = false;
+
+    const setBodyLock = (lock) => {
+      document.body.style.overflow = lock ? 'hidden' : '';
+    };
+    const closeModal = () => {
+      if (typeof modal.close === 'function') {
+        modal.close();
+      } else {
+        modal.removeAttribute('open');
+      }
+      setBodyLock(false);
+    };
+    /* Autofocus only where a fine pointer exists: on phones the programmatic
+       focus pops the soft keyboard and old iOS WebKit shoves the fixed
+       dialog off-screen — the user taps the field themselves instead. */
+    const focusInput = () => {
+      const fine =
+        window.matchMedia &&
+        window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      if (!fine) return;
+      setTimeout(() => {
+        const input = modal.querySelector('input');
+        if (input) input.focus();
+      }, 60);
+    };
+
+    const openModal = async () => {
+      /* showModal() throws InvalidStateError on an already-open dialog, and
+         multiple entry points (trigger, [data-open-search]) can fire for one
+         tap — stay idempotent instead of relying on every caller binding once. */
+      if (modal.open) return;
+      if (typeof modal.showModal === 'function') {
+        modal.showModal();
+      } else {
+        /* No <dialog> support — the fixed-position CSS keeps the open
+           dialog a usable overlay even without showModal(). */
+        modal.setAttribute('open', '');
+        setBodyLock(true);
+      }
+      if (!pagefindLoaded) {
+        pagefindLoaded = true;
+        try {
+          await import('/pagefind/pagefind-ui.js');
+          const PFUI = window.PagefindUI;
+          const target = document.getElementById('search-modal-inner');
+          const noResults = target
+            ? target.getAttribute('data-no-results')
+            : 'No matches found';
+          const placeholder = target ? target.getAttribute('data-placeholder') : 'Search';
+          if (target && typeof PFUI === 'function') {
+            new PFUI({
+              element: '#' + target.id,
+              showSubResults: true,
+              showImages: false,
+              showEmptyFilters: false,
+              // Pagefind maps dist/<dir>/index.html → "/<dir>/" — which is
+              // exactly the site's URL shape (trailingSlash:'always'). Keep a
+              // defensive normalizer; skip URLs with a #fragment (sub-result
+              // anchors — appending "/" after the hash breaks the jump).
+              processResult: (result) => {
+                const url = result && result.url;
+                if (
+                  url &&
+                  url !== '/' &&
+                  !url.endsWith('/') &&
+                  url.indexOf('#') === -1
+                ) {
+                  result.url = url + '/';
+                }
+                const meta = result && result.meta;
+                const metaUrl = meta && meta.url;
+                if (
+                  metaUrl &&
+                  metaUrl !== '/' &&
+                  !metaUrl.endsWith('/') &&
+                  metaUrl.indexOf('#') === -1
+                ) {
+                  result.meta.url = metaUrl + '/';
+                }
+                return result;
+              },
+              translations: {
+                placeholder: placeholder || 'Search',
+                zero_results: noResults || 'No matches found',
+              },
+            });
+            setTimeout(() => {
+              focusInput();
+            }, 60);
+          } else {
+            console.warn('[search] PagefindUI not found on window after loading pagefind-ui.js');
+          }
+        } catch (err) {
+          console.warn('[search] Pagefind failed to load — run `pnpm build` first.', err);
+          /* Never leave a silently empty dialog: surface the failure. */
+          const inner = document.getElementById('search-modal-inner');
+          const msg = (inner && inner.getAttribute('data-load-error')) || 'Search failed to load — refresh and try again.';
+          if (inner) {
+            inner.innerHTML = '';
+            const p = document.createElement('p');
+            p.className = 'pagefind-load-error';
+            p.textContent = msg;
+            inner.appendChild(p);
+          }
+        }
+      } else {
+        setTimeout(() => {
+          focusInput();
+        }, 50);
+      }
+    };
+
+    const bindTrigger = (el) => {
+      el.addEventListener('click', () => {
+        openModal();
+        // If the trigger lives inside a <details> menu, fold the menu back up.
+        const menu = el.closest('details');
+        if (menu) menu.open = false;
+      });
+    };
+    if (trigger) bindTrigger(trigger);
+    /* This inline script executes mid-parse (before the landing header's
+       second-row search bar exists in the DOM), so [data-open-search]
+       binding must wait for the full document. */
+    const bindOpenSearchButtons = () => {
+      const extra = document.querySelectorAll('[data-open-search]');
+      for (let i = 0; i < extra.length; i++) bindTrigger(extra[i]);
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bindOpenSearchButtons);
+    } else {
+      bindOpenSearchButtons();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openModal();
+      }
+    });
+
+    // Click outside the inner shell closes the modal (native dialog backdrop click).
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+
+    // Lock body scroll while the dialog is open (backup for the CSS
+    // :has() rule, for older browsers). Also prevent wheel events from
+    // scrolling the background page when the results list reaches its
+    // scroll boundary.
+    modal.addEventListener('toggle', (e) => {
+      setBodyLock(e.newState === 'open');
+    });
+    // showModal/close don't always fire 'toggle' in every browser, so
+    // also hook the open/close calls directly.
+    const origShow = typeof modal.showModal === 'function' ? modal.showModal.bind(modal) : null;
+    const origClose = typeof modal.close === 'function' ? modal.close.bind(modal) : null;
+    if (origShow) modal.showModal = () => { origShow(); setBodyLock(true); };
+    if (origClose) modal.close = (rv) => { origClose(rv); setBodyLock(false); };
+
+    // Prevent scroll-through: when wheeling inside the results area and
+    // hitting the top/bottom boundary, stop the event so the background
+    // page doesn't start scrolling.
+    modal.addEventListener('wheel', (e) => {
+      const scroller = modal.querySelector('.pagefind-ui__results-area');
+      if (!scroller) return;
+      const atTop = scroller.scrollTop === 0;
+      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight;
+      const goingUp = e.deltaY < 0;
+      const goingDown = e.deltaY > 0;
+      if ((atTop && goingUp) || (atBottom && goingDown)) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  })();
+</script>

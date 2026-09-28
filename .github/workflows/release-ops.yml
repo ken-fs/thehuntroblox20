@@ -1,0 +1,109 @@
+# Release anvilwiki-ops — npm publish via Trusted Publishing (OIDC, v2.0).
+#
+# Zero npm tokens, zero OTP: GitHub exchanges an OIDC token for a short-lived
+# npm credential (npm CLI >= 11.5.1 required, hence the one-time global
+# upgrade below — Node 22 bundles npm 10.x). Prerequisite (one-time, web):
+# npmjs.com → anvilwiki-ops → Settings → Trusted publishing → GitHub Actions
+# with PNGTRID/AnvilWiki and this workflow's filename.
+#
+# Trigger: Actions → Release anvilwiki-ops → Run workflow, or push a tag
+# starting with "ops-v". Tests and build run before the publish — a red gate
+# means nothing is published.
+#
+# Publish approval: the job targets the "npm" GitHub Environment (required
+# reviewer = repo owner, configured repo-side). This is load-bearing, not
+# ceremony: branch protection does NOT cover tags, so without the environment
+# anyone with write access could tag an arbitrary commit and publish it with
+# valid OIDC provenance. The workflow itself adds a second layer — the
+# published commit must be an ancestor of main on BOTH trigger paths: a tag
+# push proves the tagged commit sits on main, and a workflow_dispatch proves
+# the checked-out branch head does (see the guard steps below).
+
+name: Release anvilwiki-ops
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['ops-v*']
+
+permissions:
+  contents: read
+  id-token: write # OIDC — the whole point; never add other secrets here.
+
+concurrency:
+  group: release-ops
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Required-reviewer gate (the environment is created/managed repo-side,
+    # not by this file). A tag push waits for owner approval in the Actions
+    # UI before any step runs — the front door against tag-triggered
+    # unreviewed publishes; the ancestry guard below is the back stop.
+    environment: npm
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/anvil-ops
+    steps:
+      # fetch-depth: 0 — the ancestry guard below needs origin/main locally,
+      # which the default shallow clone does not contain.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      # Tag↔version guard: pushing ops-v1.0.2 while package.json says 1.0.3
+      # would otherwise publish the wrong version with correct provenance.
+      - name: Verify tag matches package.json version
+        if: ${{ github.ref_type == 'tag' }}
+        working-directory: .
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#ops-v}"
+          PKG_VERSION=$(node -p "require('./tools/anvil-ops/package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag ops-v$TAG_VERSION does not match tools/anvil-ops/package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      # Main-ancestry guard: branch protection does not cover tags, and a
+      # workflow_dispatch skips every tag-conditional step — so this check is
+      # deliberately UNCONDITIONAL and runs on both trigger paths: a tag push
+      # proves the tagged commit sits on main; a dispatch proves the checked-
+      # out branch head ($GITHUB_SHA) does. Either way, only code that went
+      # through review/CI can reach npm.
+      - name: Verify published commit is on main
+        working-directory: .
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::ref $GITHUB_REF_NAME ($GITHUB_SHA) is not on main — refusing to publish unreviewed code"
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+          cache-dependency-path: tools/anvil-ops/pnpm-lock.yaml
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Quality gates (typecheck + tests + build)
+        run: pnpm typecheck && pnpm test && pnpm build
+
+      # OIDC trusted publishing needs npm CLI >= 11.5.1; Node 22 ships 10.x.
+      # Pinned to major 11 — never a floating latest.
+      - name: Upgrade npm for OIDC publish
+        run: npm install -g npm@11
+
+      - name: Publish (no token — OIDC)
+        run: npm publish

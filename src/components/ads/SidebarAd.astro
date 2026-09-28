@@ -1,0 +1,25 @@
+---
+/**
+ * SidebarAd — desktop-only fixed sidebar ad (AdSense).
+ *
+ * Gated on PUBLIC_ADSENSE_CLIENT + PUBLIC_ADSENSE_SLOT_SIDEBAR:
+ * either empty = nothing rendered.
+ */
+import AdSenseSlot from './AdSenseSlot.astro';
+
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT as string | undefined;
+const slot = import.meta.env.PUBLIC_ADSENSE_SLOT_SIDEBAR as string | undefined;
+const show = !!(client && slot);
+---
+
+{
+  show && (
+    <aside class="hidden w-[160px] shrink-0 lg:block">
+      {/* min-h reserves the 160×600 half-page height — the fill otherwise
+          grows the sticky column and shifts the page footer (CLS). */}
+      <div class="sticky top-20 min-h-[600px] space-y-4">
+        <AdSenseSlot position="sidebar" />
+      </div>
+    </aside>
+  )
+}

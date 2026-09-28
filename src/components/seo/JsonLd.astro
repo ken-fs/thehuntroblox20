@@ -1,0 +1,16 @@
+---
+/**
+ * Generic JSON-LD injector. Pass any schema.org object as `data`.
+ * Renders a single <script type="application/ld+json"> with the data stringified.
+ */
+interface Props {
+  data: Record<string, unknown> | Record<string, unknown>[];
+}
+const { data } = Astro.props;
+// JSON.stringify leaves `<` untouched, so a literal `</script>` inside frontmatter
+// strings would escape the script block. Escape it as a JSON \u escape — still
+// valid JSON, invisible to parsers, and safe for HTML script context.
+const json = JSON.stringify(data).replace(/</g, '\\u003c');
+---
+
+<script type="application/ld+json" set:html={json} is:inline />

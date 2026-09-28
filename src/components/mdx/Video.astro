@@ -1,0 +1,36 @@
+---
+/**
+ * Inline YouTube video for MDX articles (v1.8.1).
+ *
+ * Use INSIDE the article body wherever the video belongs — right under the
+ * heading it illustrates (unlike the frontmatter `videos` array, which only
+ * renders at the article bottom as a fallback):
+ *
+ *   import Video from '~/components/mdx/Video.astro';
+ *
+ *   ## How the Economy Works
+ *   ...text...
+ *   <Video id="Qrz5zquuIpI" title="Money guide walkthrough" />
+ *
+ * IMPORTANT: also register the ID in frontmatter `videos:` — that array is
+ * the source for VideoObject JSON-LD. Inline placement is presentation;
+ * frontmatter is structured data. The bottom fallback skips IDs already
+ * inlined, so nothing renders twice.
+ */
+import LazyYouTube from '~/components/video/LazyYouTube.astro';
+import { currentSharedStrings } from '~/lib/shared-ui';
+
+interface Props {
+  /** 11-char YouTube video ID (same ID should also be in frontmatter videos). */
+  id: string;
+  /** Title shown on the play overlay + used for accessibility. */
+  title?: string;
+}
+const sharedStrings = currentSharedStrings(Astro.currentLocale);
+const { id, title = sharedStrings.watchVideo ?? 'Watch video' } = Astro.props;
+---
+
+<div class="not-prose my-6">
+  <LazyYouTube videoId={id} title={title} />
+  {title && <p class="mt-1.5 text-center text-xs text-muted-foreground">{title}</p>}
+</div>

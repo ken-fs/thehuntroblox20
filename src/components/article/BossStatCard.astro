@@ -1,0 +1,55 @@
+---
+/**
+ * BossStatCard — structured boss data card (HP / weakness / resistance /
+ * location / recommended level), rendered above the article body.
+ *
+ * Why: every boss guide repeats the same stat table as hand-written GFM,
+ * which looks inconsistent across articles and breaks on mobile. A
+ * frontmatter-driven card keeps 100 boss pages visually uniform, adapts to
+ * narrow screens, and gives AI crawlers clean key-value data.
+ *
+ * Data source: optional `boss` frontmatter object (content.config.ts).
+ * Labels come from locale JSON (`shared.bossCard.*`) — no hardcoded copy.
+ */
+import { Icon } from 'astro-icon/components';
+
+interface BossStats {
+  hp: string;
+  weakness: string;
+  resistant: string;
+  location: string;
+  recommendedLevel?: string;
+}
+
+interface Props {
+  boss: BossStats;
+  /** i18n labels from shared.bossCard. */
+  labels: Record<string, string>;
+}
+const { boss, labels } = Astro.props;
+
+const stats = [
+  { icon: 'lucide:heart', label: labels.hp, value: boss.hp },
+  { icon: 'lucide:target', label: labels.weakness, value: boss.weakness },
+  { icon: 'lucide:shield', label: labels.resistant, value: boss.resistant },
+  { icon: 'lucide:map-pin', label: labels.location, value: boss.location },
+  ...(boss.recommendedLevel
+    ? [{ icon: 'lucide:gauge', label: labels.level, value: boss.recommendedLevel }]
+    : []),
+].filter((s) => s.value);
+---
+
+<aside class="mt-6 rounded-lg border border-border bg-card p-4">
+  <p class="text-xs font-semibold uppercase tracking-wider text-foreground">{labels.title}</p>
+  <dl class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    {stats.map((s) => (
+      <div class="rounded-md bg-muted/50 p-3">
+        <dt class="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-foreground">
+          <Icon name={s.icon} class="h-3 w-3" />
+          {s.label}
+        </dt>
+        <dd class="mt-1 text-sm font-semibold text-foreground">{s.value}</dd>
+      </div>
+    ))}
+  </dl>
+</aside>

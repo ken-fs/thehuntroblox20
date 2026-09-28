@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Rapid pushes to the same PR cancel the outdated run instead of stacking.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # pnpm/action-setup installs pnpm WITHOUT running it, so it works
+      # even before Node is configured (runs on the action's own Node).
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The eight gates (lint → typecheck → test → check-config → build →
+      # check-content → check-links → check-i18n) live in one composite
+      # action so the auto-content pipeline verifies drafts with the exact
+      # same definition before opening a PR.
+      - name: Quality gates
+        uses: ./.github/actions/gates
+        with:
+          site-url: ${{ vars.SITE_URL || 'https://anvil.wiki' }}
+
+  # apply-template has ZERO vitest coverage and only breaks in real
+  # (non-dry-run) mode, which the demo repo never exercises — three real-mode
+  # bugs shipped through the eight gates unnoticed before this job existed
+  # (PR #10 ENOENT crash; home-template schema drift crashing the fork's
+  # first build). Drives the CLI against a throwaway copy and builds it.
+  e2e-template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      # The harness does its own pnpm install inside the scratch copy (same
+      # lockfile → shares the cached store); no root install needed here.
+      - name: E2E — apply-template real mode + build
+        run: pnpm test:e2e
+
+  # tools/anvil-ops is excluded from the root tsconfig/eslint/workspace, so
+  # its gates must run separately — without this job, PRs touching the ops
+  # CLI/MCP would land on main with zero test signal (first failure would
+  # surface only at release time).
+  ops-toolkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/anvil-ops
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+          cache-dependency-path: tools/anvil-ops/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Quality gates (typecheck + tests + build)
+        run: pnpm typecheck && pnpm test && pnpm build

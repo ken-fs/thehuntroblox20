@@ -1,0 +1,107 @@
+---
+/**
+ * Comments — Giscus comment widget for article pages.
+ *
+ * Gated by env vars — empty config = nothing rendered (same pattern as
+ * InContentAd.astro). This preserves the template's out-of-box Lighthouse
+ * 4×100: forks without comment config ship zero extra JS.
+ *
+ * When enabled (all 4 required PUBLIC_GISCUS_* fields filled), injects
+ * Giscus's official <script async data-loading="lazy">. The lazy attr
+ * is forwarded by client.js to the iframe it creates, so the widget
+ * defers until near-viewport — Lighthouse-friendly.
+ *
+ * Dark mode sync: two MutationObservers + postMessage. Observer A
+ * watches <html>.dark class (toggled by ThemeToggle.astro). Observer B
+ * watches the .giscus container's childList (catches the async-inserted
+ * iframe so we can sync theme once it exists).
+ *
+ * User-facing setup guide: docs/comments.md
+ */
+import { type Locale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+
+interface Props {
+  /** Page locale — drives Giscus UI language (en/ja). */
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+
+// Read Giscus config from env ( PUBLIC_ prefix exposes to client via import.meta.env).
+const env = import.meta.env as Record<string, string | undefined>;
+const repo = env.PUBLIC_GISCUS_REPO;
+const repoId = env.PUBLIC_GISCUS_REPO_ID;
+const category = env.PUBLIC_GISCUS_CATEGORY;
+const categoryId = env.PUBLIC_GISCUS_CATEGORY_ID;
+const mapping = env.PUBLIC_GISCUS_MAPPING || 'pathname';
+
+// 4 required business fields — any one empty = disabled (no half-rendered iframe).
+const enabled = Boolean(repo && repoId && category && categoryId);
+
+// Giscus data-lang uses short codes matching our locale values.
+// Whitelist is defensive (Giscus codes ≠ BCP-47 in edge cases).
+const GISCUS_LANG: Record<string, string> = { en: 'en', ja: 'ja' };
+const lang = GISCUS_LANG[locale] ?? 'en';
+
+const ui = getUi(locale);
+const shared = ui.shared;
+const heading = shared.commentsHeading ?? 'Comments';
+---
+{enabled && (
+  <section class="mt-12 border-t border-border pt-8">
+    <h2 class="text-xl font-bold">{heading}</h2>
+    <div class="giscus mt-4" />
+
+    {/* Giscus widget — client.js forwards data-loading=lazy to the iframe.
+        is:inline: external script with data-* attrs, must render as-is. */}
+    <script
+      is:inline
+      src="https://giscus.app/client.js"
+      data-repo={repo}
+      data-repo-id={repoId}
+      data-category={category}
+      data-category-id={categoryId}
+      data-mapping={mapping}
+      data-strict="0"
+      data-reactions-enabled="1"
+      data-emit-metadata="0"
+      data-input-position="bottom"
+      data-theme="light"
+      data-lang={lang}
+      data-loading="lazy"
+      crossorigin="anonymous"
+      async
+    />
+
+    {/* Dark mode sync — vanilla JS, is:inline so Astro doesn't bundle/delay it */}
+    <script is:inline set:html={`(() => {
+  function syncTheme() {
+    var theme = document.documentElement.classList.contains('dark') ? 'dark_dimmed' : 'light';
+    var iframe = document.querySelector('iframe.giscus-frame');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage(
+        { giscus: { setConfig: { theme: theme } } },
+        'https://giscus.app'
+      );
+    }
+  }
+
+  // Observer A: watch <html>.dark class (user clicks theme toggle)
+  new MutationObserver(syncTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
+  });
+
+  // Observer B: watch .giscus container childList (client.js async-inserts iframe)
+  // + initial sync attempt in case iframe already exists at DOMContentLoaded.
+  document.addEventListener('DOMContentLoaded', function () {
+    var container = document.querySelector('.giscus');
+    if (container) {
+      new MutationObserver(syncTheme).observe(container, { childList: true, subtree: true });
+    }
+    syncTheme();
+  });
+})();`} />
+  </section>
+)}

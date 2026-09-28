@@ -1,0 +1,86 @@
+---
+/**
+ * StickyBanner — the sticky banner (AdSense), DESKTOP ONLY by default.
+ *
+ * Mobile is intentionally excluded (`hidden md:block`): a 320×50 strip stuck
+ * under a 56px header permanently eats ~16% of a phone's first screen — the
+ * exact bounce-driver UX research flags on ad-heavy wikis. Game wiki traffic
+ * is overwhelmingly mobile, and the first screen decides the SEO bounce.
+ * (Mobile 320×50 lives at the BOTTOM edge instead: MobileAnchorAd on article
+ * pages — dismissible, zero-CLS, consent-gated; v2.28.0.)
+ * Fork users who want mobile sticky anyway: remove `hidden md:block` below.
+ *
+ * Includes a dismiss button (persisted in localStorage).
+ *
+ * Gated on PUBLIC_ADSENSE_CLIENT + PUBLIC_ADSENSE_SLOT_STICKY:
+ * either empty = nothing rendered.
+ */
+import { Icon } from 'astro-icon/components';
+import AdSenseSlot from './AdSenseSlot.astro';
+import { currentSharedStrings } from '~/lib/shared-ui';
+
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT as string | undefined;
+const slot = import.meta.env.PUBLIC_ADSENSE_SLOT_STICKY as string | undefined;
+const show = !!(client && slot);
+const sharedStrings = currentSharedStrings(Astro.currentLocale);
+const closeAd = sharedStrings.closeAd ?? 'Close ad';
+---
+
+{
+  show && (
+    <div
+      id="sticky-banner"
+      class="sticky top-14 z-30 hidden border-b border-border bg-background/95 py-2 backdrop-blur md:block"
+    >
+      {/* min-h reserves the 728×90 leaderboard height so the AdSense fill
+          (1–2s after load) doesn't push <main> down — CLS on every page
+          otherwise. Unfilled inventory leaves reserved blank space; that's
+          the accepted trade-off for zero layout shift. */}
+      <div class="relative mx-auto flex min-h-[90px] max-w-4xl items-center justify-center px-4">
+        <AdSenseSlot position="sticky" class="mx-auto" />
+        <button
+          id="dismiss-sticky"
+          type="button"
+          aria-label={closeAd}
+          class="absolute -right-1 -top-1 rounded-full border bg-background p-1 text-muted-foreground transition hover:bg-muted"
+        >
+          <Icon name="lucide:x" class="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  )
+}
+{
+  show && (
+    <script is:inline>
+      /* Dismiss logic is gated on the same env condition as the markup above
+         (same pattern as AdSenseSlot's push script) — zero-ad forks render
+         and execute none of this. */
+      (() => {
+        const banner = document.getElementById('sticky-banner');
+        const btn = document.getElementById('dismiss-sticky');
+        if (!banner || !btn) return;
+        // Storage can be blocked (privacy extensions / strict browsers) — degrade
+        // to "dismiss works, just not remembered", same pattern as ThemeToggle.
+        let dismissed = false;
+        try {
+          dismissed = localStorage.getItem('sticky-dismissed') === '1';
+        } catch (e) {
+          /* storage unavailable */
+        }
+        if (dismissed) {
+          banner.remove();
+          return;
+        }
+        btn.addEventListener('click', () => {
+          try {
+            localStorage.setItem('sticky-dismissed', '1');
+          } catch (e) {
+            /* storage unavailable */
+          }
+          banner.remove();
+        });
+      })();
+    </script>
+  )
+}

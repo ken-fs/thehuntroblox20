@@ -1,0 +1,136 @@
+---
+/**
+ * Image gallery with a native <dialog> lightbox (v1.7).
+ *
+ * Zero JS until a thumbnail is clicked — the lightbox script only wires
+ * listeners on the elements below. Thumbnails go through Astro <Image>
+ * (auto WebP + srcset); the lightbox shows the full-size original.
+ *
+ * Driven by the `gallery` frontmatter array; renders nothing when empty.
+ */
+import { Image } from 'astro:assets';
+import { Icon } from 'astro-icon/components';
+import type { ImageMetadata } from 'astro';
+
+interface GalleryItem {
+  image: ImageMetadata;
+  caption?: string;
+  alt?: string;
+}
+
+interface Props {
+  items: GalleryItem[];
+  /** Section heading (from locale JSON shared.gallery). */
+  heading: string;
+  /** Lightbox button labels (locale JSON shared.galleryLabels). */
+  labels?: Record<string, string>;
+}
+const { items, heading, labels = {} } = Astro.props;
+const t = (key: string, fallback: string) => labels[key] ?? fallback;
+
+if (items.length === 0) return null;
+---
+
+<section class="mt-10 border-t border-border pt-8" data-gallery>
+  <h2 class="flex items-center gap-2 text-xl font-bold">
+    <Icon name="lucide:images" class="h-5 w-5 text-nav" />
+    {heading}
+  </h2>
+  <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    {
+      items.map((item, i: number) => (
+        <button
+          type="button"
+          class="group relative overflow-hidden rounded-md border border-border"
+          data-gallery-thumb={i}
+          data-full={item.image.src}
+          data-caption={item.caption ?? ''}
+          aria-label={item.alt ?? item.caption ?? `Open image ${i + 1}`}
+        >
+          <Image
+            src={item.image}
+            alt={item.alt ?? item.caption ?? ''}
+            width={400}
+            height={225}
+            widths={[200, 400, 800]}
+            sizes="(max-width: 640px) 50vw, 33vw"
+            format="webp"
+            loading="lazy"
+            decoding="async"
+            class="aspect-video w-full object-cover transition group-hover:scale-105"
+          />
+        </button>
+      ))
+    }
+  </div>
+</section>
+
+{/* Lightbox — native dialog, one instance per page */}
+<dialog
+  class="backdrop:bg-background/90 backdrop:backdrop-blur-sm"
+  data-gallery-lightbox
+  aria-label={heading}
+>
+  <div class="flex max-h-[90vh] max-w-[90vw] flex-col items-center gap-3 bg-transparent">
+    <!-- No src until opened: an empty src resolves to the page URL and fires a
+         spurious image request on every gallery page load. -->
+    <img data-gallery-full alt="" class="max-h-[80vh] max-w-[90vw] rounded-md object-contain" />
+    <p data-gallery-caption class="min-h-5 text-sm text-foreground"></p>
+    <div class="flex gap-2">
+      <button type="button" data-gallery-prev class="btn-outline px-3 py-1.5 text-xs" aria-label={t("prev", "Previous image")}>
+        <Icon name="lucide:chevron-left" class="h-4 w-4" />
+      </button>
+      <button type="button" data-gallery-close class="btn-outline px-3 py-1.5 text-xs">
+        <Icon name="lucide:x" class="mr-1 h-4 w-4" />
+        {t("close", "Close")}
+      </button>
+      <button type="button" data-gallery-next class="btn-outline px-3 py-1.5 text-xs" aria-label={t("next", "Next image")}>
+        <Icon name="lucide:chevron-right" class="h-4 w-4" />
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  // Gallery lightbox — wired lazily, only when the section exists.
+  // Full-size URLs + captions are baked onto the thumb buttons at build time.
+  (() => {
+    const root = document.querySelector('[data-gallery]');
+    const dialog = document.querySelector<HTMLDialogElement>('[data-gallery-lightbox]');
+    if (!root || !dialog) return;
+
+    const thumbs = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('[data-gallery-thumb]'),
+    );
+    const full = dialog.querySelector<HTMLImageElement>('[data-gallery-full]');
+    const caption = dialog.querySelector<HTMLParagraphElement>('[data-gallery-caption]');
+    if (!full || !caption || thumbs.length === 0) return;
+
+    const items = thumbs.map((t) => ({
+      src: t.dataset.full ?? '',
+      caption: t.dataset.caption ?? '',
+    }));
+
+    let idx = 0;
+    const show = (i: number) => {
+      idx = (i + items.length) % items.length;
+      full.src = items[idx].src;
+      full.alt = items[idx].caption;
+      caption.textContent = items[idx].caption;
+    };
+
+    thumbs.forEach((t, i) =>
+      t.addEventListener('click', () => {
+        show(i);
+        dialog.showModal();
+      }),
+    );
+    dialog.querySelector('[data-gallery-prev]')?.addEventListener('click', () => show(idx - 1));
+    dialog.querySelector('[data-gallery-next]')?.addEventListener('click', () => show(idx + 1));
+    dialog.querySelector('[data-gallery-close]')?.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => {
+      // Click on the backdrop (outside content) closes.
+      if (e.target === dialog) dialog.close();
+    });
+  })();
+</script>

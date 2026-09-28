@@ -1,0 +1,108 @@
+---
+/**
+ * Tag aggregation page — all articles in a locale carrying one tag.
+ * No English fallback (list accuracy rule, PRD §9.3).
+ * Route only generates paths for tags that exist in the locale, so a null
+ * label here means the tag exists in another locale only → empty state.
+ */
+import { Icon } from 'astro-icon/components';
+import LocaleLayout from '~/components/layout/LocaleLayout.astro';
+import ArticleCover from '~/components/article/ArticleCover.astro';
+import { type Locale } from '~/i18n/routing';
+import { getUi } from '~/i18n/ui';
+import { getEntriesByTag, localesForTag, parseEntryId, tagLabelFor } from '~/lib/content';
+import { pageTitle, simpleBreadcrumbJsonLd, urlListJsonLd } from '~/lib/seo';
+import { detailPath, homeUrl, tagPath, tagsPath } from '~/lib/url';
+import { siteUrl } from '~/config/site';
+
+interface Props {
+  locale: Locale;
+  tagSlug: string;
+  alternates?: Array<{ hreflang: string; href: string }>;
+}
+const { locale, tagSlug, alternates = [] } = Astro.props;
+const ui = getUi(locale);
+const nav = ui.nav;
+const shared = ui.shared;
+
+const label = await tagLabelFor(tagSlug, locale);
+const title = label ?? tagSlug;
+const description = `${title} — ${shared.allTags} · ${ui.site.tagline}`;
+
+const entries = await getEntriesByTag(tagSlug, locale);
+// Tag pages don't fall back — only offer languages where the tag exists.
+const availableLocales = await localesForTag(tagSlug);
+
+const jsonLd = [
+  urlListJsonLd({
+    name: title,
+    items: entries.map((e) => {
+      const parsed = parseEntryId(e.id);
+      return {
+        title: e.data.title,
+        url: `${siteUrl}${detailPath(parsed?.category ?? '', parsed?.slug ?? '', locale)}`,
+      };
+    }),
+  }),
+  simpleBreadcrumbJsonLd({ pageLabel: title, path: tagPath(tagSlug, locale), locale, homeLabel: nav.home }),
+];
+---
+
+<LocaleLayout
+  locale={locale}
+  title={pageTitle(title)}
+  description={description}
+  alternates={alternates}
+  jsonLd={jsonLd}
+  availableLocales={availableLocales}
+>
+  <div class="space-y-6">
+    <header>
+      <nav class="text-sm text-muted-foreground" aria-label="breadcrumb">
+        <a href={homeUrl(locale)} class="hover:text-nav">{nav.home}</a>
+        <span class="mx-1">/</span>
+        <a href={tagsPath(locale)} class="hover:text-nav">{shared.allTags}</a>
+        <span class="mx-1">/</span>
+        <span class="text-foreground">{title}</span>
+      </nav>
+      <div class="mt-2 flex items-center gap-3">
+        <Icon name="lucide:tag" class="h-7 w-7 text-nav" />
+        <h1 class="text-3xl font-extrabold tracking-tight">#{title}</h1>
+        <span class="rounded-full bg-muted px-2.5 py-0.5 text-sm text-muted-foreground">
+          {entries.length} {shared.articlesCount}
+        </span>
+      </div>
+    </header>
+
+    {
+      entries.length === 0 ? (
+        <div class="rounded-lg border border-dashed bg-card p-12 text-center">
+          <Icon name="lucide:inbox" class="mx-auto h-10 w-10 text-muted-foreground" />
+          <p class="mt-3 text-muted-foreground">{shared.noArticles}</p>
+        </div>
+      ) : (
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {entries.map((entry) => {
+            const parsed = parseEntryId(entry.id);
+            const category = parsed?.category ?? '';
+            return (
+              <a href={detailPath(category, parsed?.slug ?? '', locale)} class="card p-5">
+                {entry.data.image && <ArticleCover src={entry.data.image} />}
+                <p class="text-xs uppercase tracking-wider text-muted-foreground">{category}</p>
+                <h2 class="mt-1 font-semibold leading-snug">{entry.data.title}</h2>
+                <p class="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                  {entry.data.description}
+                </p>
+                <p class="mt-3 text-xs text-muted-foreground">
+                  {entry.data.lastModified
+                    ? `${shared.lastUpdated}: ${entry.data.lastModified.toLocaleDateString(locale, { timeZone: 'UTC' })}`
+                    : `${shared.publishedOn}: ${entry.data.date.toLocaleDateString(locale, { timeZone: 'UTC' })}`}
+                </p>
+              </a>
+            );
+          })}
+        </div>
+      )
+    }
+  </div>
+</LocaleLayout>

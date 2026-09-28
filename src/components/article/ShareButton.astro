@@ -1,0 +1,74 @@
+---
+/**
+ * ShareButton — native share sheet (navigator.share) with a clipboard
+ * fallback. Zero dependencies, progressive enhancement only.
+ *
+ * Game wiki traffic is social: players paste guide links into Discord / chat
+ * constantly. One tap lowers that friction → more UGC backlinks.
+ *
+ * UI text comes from locale JSON (`shared.share` / `copyLink` / `copied`)
+ * per the project's no-hardcoded-copy rule.
+ */
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  /** Share title (usually the article title). */
+  title: string;
+  /** i18n labels: share / copyLink / copied. */
+  labels: { share: string; copyLink: string; copied: string };
+}
+const { title, labels } = Astro.props;
+---
+
+<div
+  class="inline-flex items-center gap-1"
+  data-share-root
+  data-share-title={title}
+  data-copied-text={labels.copied}
+>
+  <button
+    type="button"
+    data-share-btn
+    class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:border-nav/50 hover:text-nav"
+  >
+    <Icon name="lucide:share-2" class="h-3.5 w-3.5" />
+    <span data-share-label>{labels.share}</span>
+  </button>
+</div>
+
+<script>
+  (() => {
+    const roots = document.querySelectorAll<HTMLElement>('[data-share-root]');
+    roots.forEach((root) => {
+      const btn = root.querySelector<HTMLButtonElement>('[data-share-btn]');
+      const label = root.querySelector<HTMLElement>('[data-share-label]');
+      if (!btn || !label) return;
+      const title = root.getAttribute('data-share-title') || document.title;
+      const copiedText = root.getAttribute('data-copied-text') || 'Copied!';
+
+      btn.addEventListener('click', async () => {
+        const url = window.location.href;
+        // Prefer the native share sheet (mobile); fall back to copy link.
+        if (navigator.share) {
+          try {
+            await navigator.share({ title, url });
+            return;
+          } catch {
+            // User dismissed the sheet — do nothing.
+            return;
+          }
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          const original = label.textContent;
+          label.textContent = copiedText;
+          setTimeout(() => {
+            label.textContent = original;
+          }, 2000);
+        } catch {
+          // Clipboard unavailable — ignore silently.
+        }
+      });
+    });
+  })();
+</script>

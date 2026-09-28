@@ -1,0 +1,126 @@
+---
+/**
+ * CookieConsent — GDPR/ePrivacy consent banner that actually GATES tracking.
+ *
+ * How it works (with BaseLayout):
+ *   - BaseLayout no longer injects GA / AdSense statically. Instead it defines
+ *     `window.__awLoadTrackers()` which injects them dynamically.
+ *   - This component shows a banner when no choice is stored (only rendered
+ *     at all when tracking env vars are set — see BaseLayout).
+ *   - Accept  → store 'accepted', call __awLoadTrackers(), remove banner.
+ *   - Decline → store 'declined', trackers never load (this session & future).
+ *   - Returning visitors with a stored choice never see the banner again.
+ *
+ * Other consent-gated mounts (AdsterraSlot's deferred iframes) can't reach
+ * __awLoadTrackers, so whenever consent becomes known-accepted this script
+ * also dispatches the `aw:consent-accepted` document event. The script below
+ * compiles as its own module — it CANNOT see frontmatter imports — so the
+ * event/storage names are hardcoded here; canonical values live in
+ * src/lib/shared-ui.ts (keep the three files in sync).
+ *
+ * Default-off contract preserved: no tracking env vars → this component is
+ * never rendered → zero JS → Lighthouse unchanged.
+ */
+interface Props {
+  /** i18n labels. */
+  labels: { title: string; text: string; accept: string; decline: string };
+  /** Link to the (localized) privacy policy — ePrivacy informed-consent best practice. */
+  privacyHref?: string;
+  privacyLabel?: string;
+}
+const { labels, privacyHref, privacyLabel } = Astro.props;
+---
+
+<div
+  id="cookie-consent"
+  hidden
+  class="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card p-4 shadow-lg"
+  role="dialog"
+  aria-live="polite"
+  aria-label={labels.title}
+>
+  <div class="mx-auto flex max-w-7xl flex-col items-center gap-3 sm:flex-row">
+    <p class="text-sm text-muted-foreground">
+      <span class="font-semibold text-foreground">{labels.title}: </span>{labels.text}
+      {privacyHref && privacyLabel && (
+        <a href={privacyHref} class="underline underline-offset-2 hover:text-foreground">
+          {privacyLabel}
+        </a>
+      )}
+    </p>
+    <div class="flex shrink-0 items-center gap-2 sm:ml-auto">
+      <button
+        type="button"
+        data-consent-decline
+        class="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+      >
+        {labels.decline}
+      </button>
+      <button
+        type="button"
+        data-consent-accept
+        class="btn-primary px-3 py-1.5"
+      >
+        {labels.accept}
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Type the tracker loader defined in BaseLayout (consent-gated GA/AdSense).
+  declare global {
+    interface Window {
+      __awLoadTrackers?: () => void;
+    }
+  }
+  (() => {
+    // Script can't see frontmatter imports — keep in sync with the canonical
+    // constants in src/lib/shared-ui.ts (and AdsterraSlot's inline script).
+    const KEY = 'aw-cookie-consent';
+    const ACCEPTED_EVENT = 'aw:consent-accepted';
+    const banner = document.getElementById('cookie-consent');
+    if (!banner) return;
+
+    const stored = (() => {
+      try {
+        return localStorage.getItem(KEY);
+      } catch {
+        return null;
+      }
+    })();
+
+    // Tell consent-gated third-party mounts (deferred Adsterra iframes) that
+    // loading may start. Safe to fire repeatedly — consumers are idempotent.
+    const announceAccepted = () => {
+      document.dispatchEvent(new CustomEvent(ACCEPTED_EVENT));
+    };
+
+    if (stored === 'accepted') {
+      window.__awLoadTrackers?.();
+      announceAccepted();
+      return; // never show the banner
+    }
+    if (stored === 'declined') return; // trackers stay off
+
+    banner.hidden = false;
+    banner.querySelector('[data-consent-accept]')?.addEventListener('click', () => {
+      try {
+        localStorage.setItem(KEY, 'accepted');
+      } catch {
+        /* storage unavailable — consent for this session only */
+      }
+      banner.remove();
+      window.__awLoadTrackers?.();
+      announceAccepted();
+    });
+    banner.querySelector('[data-consent-decline]')?.addEventListener('click', () => {
+      try {
+        localStorage.setItem(KEY, 'declined');
+      } catch {
+        /* ignore */
+      }
+      banner.remove();
+    });
+  })();
+</script>

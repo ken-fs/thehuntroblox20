@@ -1,0 +1,128 @@
+# Auto content PR — deterministic content pipeline (v2.0).
+#
+# The PR-gated content pipeline: a collaborator pastes a keyword list, the
+# generator scaffolds draft articles, ALL eight quality gates run, and only
+# a green run opens a draft PR for human review. Nothing here ever pushes to
+# main; LLM/AI writing never runs inside CI (that stays in local sessions —
+# see .agent/skills/anvil-batch-articles), this workflow only runs
+# deterministic generators.
+#
+# Why gates run BEFORE the PR: PRs opened with the default GITHUB_TOKEN do
+# not trigger CI runs (they sit in an approval-required state), so the
+# workflow itself is the verification — a failing gate means no PR at all.
+#
+# Manual run: Actions → Auto content PR → Run workflow. workflow_dispatch is
+# collaborator-only by definition, so no extra auth gate is needed.
+# Prerequisite (repo Settings → Actions → General): enable "Allow GitHub
+# Actions to create and approve pull requests". See docs/content-pipeline.md.
+
+name: Auto content PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Deterministic generator to run'
+        type: choice
+        options:
+          - import-csv
+          - sync-codes
+        default: import-csv
+      csv_text:
+        description: 'CSV for the selected task (import-csv: locale,category,slug,title,description — sync-codes: locale,slug,code,status,reward,expiryDate,source). Keep it small — for long lists commit a new-posts.csv / codes-sync.csv instead; the generator reads it from the repo root.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One pipeline run at a time — the PR branch is reused, concurrent runs
+# would race on it.
+concurrency:
+  group: auto-content
+  cancel-in-progress: true
+
+jobs:
+  generate-and-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # env-var indirection on purpose: never interpolate dispatch inputs
+      # straight into a shell string.
+      - name: Write keyword CSV (import-csv input)
+        if: ${{ inputs.task == 'import-csv' && inputs.csv_text != '' }}
+        env:
+          CSV_TEXT: ${{ inputs.csv_text }}
+        run: printf '%s\n' "$CSV_TEXT" > new-posts.csv
+
+      - name: Write codes CSV (sync-codes input)
+        if: ${{ inputs.task == 'sync-codes' && inputs.csv_text != '' }}
+        env:
+          CSV_TEXT: ${{ inputs.csv_text }}
+        run: printf '%s\n' "$CSV_TEXT" > codes-sync.csv
+
+      - name: Generate (import-csv → draft scaffolds)
+        if: ${{ inputs.task == 'import-csv' }}
+        # --require-output: a run that scaffolds 0 articles (empty CSV, or
+        # every row already exists) fails loudly instead of passing all gates
+        # green and then creating no PR at all.
+        run: pnpm bulk-new-posts --require-output
+
+      - name: Generate (sync-codes → codes frontmatter)
+        if: ${{ inputs.task == 'sync-codes' }}
+        # Same --require-output contract: 0 changed pages (all rows already
+        # applied) fails the run instead of opening an empty PR.
+        run: pnpm sync-codes --require-output
+
+      # All eight gates must pass here — a red gate fails the run and NO PR
+      # is created. Same composite action CI uses, so the definition cannot
+      # drift between the two paths.
+      - name: Quality gates (green = PR, red = nothing)
+        uses: ./.github/actions/gates
+        with:
+          site-url: ${{ vars.SITE_URL || 'https://anvil.wiki' }}
+
+      - name: Open draft PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
+        with:
+          # One fixed branch per task: repeated dispatches of the same task
+          # update the same PR (idempotent); different tasks never mix into
+          # one PR.
+          branch: ${{ inputs.task == 'sync-codes' && 'chore/sync-codes' || 'chore/auto-content' }}
+          delete-branch: true
+          draft: true
+          # Only content changes belong in the PR. Without this, a pasted
+          # csv_text would write new-posts.csv / codes-sync.csv to the repo
+          # root and CPR would commit it to main on merge — later dispatches
+          # would silently re-read that stale list. (Deliberately committing
+          # the CSV yourself still works; CPR just never stages it for you.)
+          add-paths: |
+            src/content/**
+          title: "${{ inputs.task == 'sync-codes' && 'auto: sync redeem codes from codes-sync.csv (sync-codes)' || 'auto: draft articles from keyword list (import-csv)' }}"
+          commit-message: 'chore(content): ${{ inputs.task }} via auto-content pipeline'
+          body: |
+            Generated by the [auto-content pipeline](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+            - Task: `${{ inputs.task }}`
+            ${{ inputs.task == 'sync-codes' && '- Codes data is synced as-given — review reward/source wording on non-en locales, and update title/summary code counts + "as of" dates if they drifted.' || '- Scaffolds are `draft: true` — fill each article with real game facts (local AI session: `.agent/skills/anvil-batch-articles`), then flip `draft` to false per article.' }}
+            - All eight quality gates passed before this PR was created.
+
+            **No merge without human review — the PR-gated contract.**

@@ -1,0 +1,59 @@
+---
+/**
+ * Callout box — the single most-used display element on game wikis
+ * ("⚠️ applies to v2.1+", "💡 trick", "❌ outdated method").
+ *
+ * Zero JS. Import inside an MDX article:
+ *
+ *   import Callout from '~/components/mdx/Callout.astro';
+ *   <Callout type="warn" title="Patch v2.5">Mechanics changed…</Callout>
+ *
+ * Colors: info/tip use the brand token (var(--brand), re-theme safe);
+ * warn/danger use fixed semantic amber/red (same precedent as the
+ * stale-content notice in ArticlePage).
+ */
+import { Icon } from 'astro-icon/components';
+
+type CalloutType = 'info' | 'tip' | 'warn' | 'danger';
+
+interface Props {
+  type?: CalloutType;
+  /** Optional bold heading line inside the box. */
+  title?: string;
+}
+
+const { type = 'info', title } = Astro.props;
+
+const styles: Record<CalloutType, { icon: string; box: string; iconColor: string }> = {
+  info: {
+    icon: 'lucide:info',
+    box: 'border-nav/40 bg-nav/5',
+    iconColor: 'text-nav',
+  },
+  tip: {
+    icon: 'lucide:lightbulb',
+    box: 'border-nav/40 bg-nav/5',
+    iconColor: 'text-nav',
+  },
+  warn: {
+    icon: 'lucide:alert-triangle',
+    box: 'border-amber-500/40 bg-amber-500/10',
+    iconColor: 'text-amber-600 dark:text-amber-400',
+  },
+  danger: {
+    icon: 'lucide:octagon-alert',
+    box: 'border-red-500/40 bg-red-500/10',
+    iconColor: 'text-red-600 dark:text-red-400',
+  },
+};
+
+const s = styles[type];
+---
+
+<aside class={`not-prose my-4 flex items-start gap-3 rounded-lg border p-4 text-sm text-foreground ${s.box}`} role="note">
+  <Icon name={s.icon} class={`mt-0.5 h-4 w-4 shrink-0 ${s.iconColor}`} />
+  <div class="min-w-0 flex-1">
+    {title && <p class="font-semibold">{title}</p>}
+    <div class={title ? 'mt-1' : ''}><slot /></div>
+  </div>
+</aside>

@@ -1,0 +1,31 @@
+---
+/**
+ * Non-default-locale homepage (e.g. /ja/).
+ *
+ * Default locale (English) is handled by src/pages/index.astro because
+ * `prefixDefaultLocale: false` means `/` is the English homepage.
+ */
+import HomePage from '~/components/home/HomePage.astro';
+import { isLocale, defaultLocale, locales, type Locale } from '~/i18n/routing';
+import { videoGameJsonLd, websiteJsonLd } from '~/lib/seo';
+import { homeUrl, languageAlternates } from '~/lib/url';
+
+export function getStaticPaths() {
+  // Only generate paths for non-default locales — default is at /.
+  // `locales` is a module-level export (visible inside getStaticPaths,
+  // unlike same-file top-level const — see AGENTS.md Astro 5 gotcha #3).
+  return locales
+    .filter((l) => l !== defaultLocale)
+    .map((l) => ({ params: { locale: l } }));
+}
+
+const { locale } = Astro.params;
+if (!isLocale(locale) || locale === defaultLocale) {
+  return Astro.redirect('/');
+}
+const jsonLd = [websiteJsonLd(locale as Locale), videoGameJsonLd()];
+// hreflang alternates: Home → / (en) or /<locale> for each locale.
+const alternates = languageAlternates((loc) => homeUrl(loc), locales);
+---
+
+<HomePage locale={locale} jsonLd={jsonLd} alternates={alternates} />

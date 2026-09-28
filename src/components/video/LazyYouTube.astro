@@ -1,0 +1,119 @@
+---
+/**
+ * LazyYouTube — the shared lite-youtube player facade (v1.8.1).
+ *
+ * Used by BOTH the homepage VideoSection and the MDX inline <Video>
+ * component. Zero framework runtime; the iframe is only injected on click
+ * (~500KB of YouTube JS saved on initial paint).
+ *
+ * Behavior:
+ *   - Thumbnail from i.ytimg.com (lazy, dims + width/height → no CLS).
+ *   - onerror fallback: where ytimg is unreachable (e.g. mainland China),
+ *     the facade collapses into a plain text link so the block is never
+ *     dead content.
+ *   - Keyboard accessible (Enter/Space).
+ *   - ONE delegated click listener per page regardless of instance count
+ *     (event delegation — safe for multiple videos per article).
+ */
+import { Icon } from 'astro-icon/components';
+import { currentSharedStrings } from '~/lib/shared-ui';
+
+interface Props {
+  /** 11-char YouTube video ID. */
+  videoId: string;
+  /** Title for accessibility + the play button overlay. */
+  title?: string;
+}
+const sharedStrings = currentSharedStrings(Astro.currentLocale);
+const { videoId, title = sharedStrings.watchVideo ?? 'Watch video' } = Astro.props;
+const playLabel = sharedStrings.playVideo ?? 'Play video';
+---
+
+<div
+  data-yt-facade={videoId}
+  class="relative aspect-video w-full cursor-pointer overflow-hidden rounded-lg bg-black"
+  role="button"
+  tabindex="0"
+  aria-label={`${playLabel}: ${title}`}
+>
+  <img
+    src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+    alt={title}
+    class="h-full w-full object-cover opacity-80 transition hover:opacity-100"
+    loading="lazy"
+    decoding="async"
+    width="480"
+    height="360"
+  />
+  <div class="absolute inset-0 flex items-center justify-center">
+    <span class="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 shadow-lg transition hover:scale-110 hover:bg-red-500">
+      <Icon name="lucide:play" class="ml-1 h-7 w-7 text-white" />
+    </span>
+  </div>
+  <a
+    href={`https://youtu.be/${videoId}`}
+    target="_blank"
+    rel="noopener noreferrer"
+    class="fallback-link absolute inset-0 hidden items-center justify-center gap-2 bg-card text-sm font-medium text-nav hover:underline"
+  >
+    <Icon name="lucide:play" class="h-4 w-4 shrink-0" />
+    {title} — YouTube
+  </a>
+</div>
+
+<style>
+  /* Thumbnail failed to load (e.g. ytimg unreachable) → swap to a text link. */
+  div[data-yt-facade]:has(img.broken) img,
+  div[data-yt-facade]:has(img.broken) > div {
+    display: none;
+  }
+  div[data-yt-facade]:has(img.broken) .fallback-link {
+    display: flex;
+  }
+  img.broken {
+    display: none;
+  }
+</style>
+
+<script>
+  // Mark broken thumbnails (China / offline / removed video) → CSS swaps in
+  // the plain text-link fallback. Done once, after DOM ready.
+  document.querySelectorAll<HTMLImageElement>('div[data-yt-facade] img').forEach((img) => {
+    if (img.complete && img.naturalWidth === 0) img.classList.add('broken');
+    img.addEventListener('error', () => img.classList.add('broken'));
+  });
+
+  // One delegated listener handles every facade on the page (no per-instance
+  // duplication, unlike the old per-component is:inline script).
+  const play = (el: HTMLElement) => {
+    const id = el.getAttribute('data-yt-facade');
+    if (!id || el.dataset.played === '1') return;
+    el.dataset.played = '1';
+    const iframe = document.createElement('iframe');
+    iframe.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`;
+    iframe.title = el.getAttribute('aria-label') || 'YouTube video';
+    iframe.allow =
+      'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+    iframe.allowFullscreen = true;
+    iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;';
+    el.innerHTML = '';
+    el.appendChild(iframe);
+  };
+  document.addEventListener('click', (e) => {
+    const facade = (e.target as HTMLElement).closest<HTMLElement>('[data-yt-facade]');
+    if (facade) play(facade);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const active = document.activeElement;
+    // When the thumbnail is broken the facade collapses into a plain <a>
+    // fallback — let the browser handle Enter on the link itself instead of
+    // swallowing it and swapping in an iframe that can't load either.
+    if (active && active.classList.contains('fallback-link')) return;
+    const facade = active?.closest<HTMLElement>('[data-yt-facade]');
+    if (facade) {
+      e.preventDefault();
+      play(facade);
+    }
+  });
+</script>

@@ -1,0 +1,80 @@
+---
+/**
+ * Video-grid displayType — 2-column grid of video thumbnail cards.
+ *
+ * 何时使用:游戏视频攻略、实机演示、update trailer 等视频内容的
+ * 首页入口。
+ *
+ * 关键设计:首页不 embed YouTube iframe(避免 iframe 拖累 Lighthouse,
+ * 且 embed 会让用户在站内看视频时广告曝光归 YouTube)。本组件只渲染
+ * 缩略图卡片,点击行为由 ExploreModules 外层 <a> 提供,跳转到 module
+ * 的 href(通常是视频列表文章页 — 文章页里既有视频又有站内广告)。
+ *
+ * highlights 字段:
+ *   - title     (string, 必填): 视频标题。同时作为 <img> 的 alt(a11y)。
+ *   - youtubeId (string, 必填): YouTube video id,11 位字符(如
+ *                "dQw4w9WgXcQ")。组件据此自动拼接封面 URL
+ *                https://i.ytimg.com/vi/{id}/hqdefault.jpg,
+ *                用户无需单独提供缩略图。
+ *   - duration  (string, 可选): 视频时长(如 "12:34")。渲染为缩略图
+ *                右下角的 badge。
+ *
+ * JSON 示例(放在 src/locales/<locale>.json 的 home.explore.modules[]):
+ *   {
+ *     "order": 6,
+ *     "name": "Video Guides",
+ *     "description": "Watch the best walkthroughs.",
+ *     "href": "/guides/video-walkthroughs",
+ *     "displayType": "video-grid",
+ *     "highlights": [
+ *       { "title": "Beginner Guide", "youtubeId": "dQw4w9WgXcQ", "duration": "12:34" },
+ *       { "title": "Boss Fight", "youtubeId": "abc123xyz", "duration": "8:21" }
+ *     ]
+ *   }
+ *
+ * 渲染效果:2 列网格(窄屏 1 列),每张卡片是 16:9 缩略图 + 右下角时长
+ * badge + 底部标题。
+ *
+ * 设计约束:
+ *   - 零 <a> 标签(点击行为由 ExploreModules 外层 <a> 提供,避免嵌套)。
+ *   - 零 JS。
+ *   - <img> 必须 loading="lazy" + alt + aspect-video 约束(防 CLS)。
+ *   - duration badge 用 bg-black/80 text-white(视频时长视觉惯例,
+ *     YouTube 自身也这么做),不是主题色,符合规则。
+ *
+ * 已知局限(未来扩展):
+ *   每张缩略图跳同一个 module href,不能跳各自的文章页。要支持每视频
+ *   独立 href,需要统一改造 ExploreModules(让所有 displayType 外层
+ *   都不包 <a>),并扩 schema 为 highlights[i].href。本次不做。
+ */
+interface Props {
+  highlights: Array<{ title: string; youtubeId: string; duration?: string }>;
+}
+const { highlights } = Astro.props;
+---
+
+<div class="grid gap-2 sm:grid-cols-2">
+  {
+    highlights.map((h) => (
+      <div class="overflow-hidden rounded-md border bg-card">
+        <div class="relative aspect-video">
+          <img
+            src={`https://i.ytimg.com/vi/${h.youtubeId}/hqdefault.jpg`}
+            alt={h.title}
+            loading="lazy"
+            decoding="async"
+            class="h-full w-full object-cover"
+            width="480"
+            height="270"
+          />
+          {h.duration && (
+            <span class="absolute bottom-1 right-1 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+              {h.duration}
+            </span>
+          )}
+        </div>
+        <p class="truncate p-2 text-xs font-medium text-foreground">{h.title}</p>
+      </div>
+    ))
+  }
+</div>

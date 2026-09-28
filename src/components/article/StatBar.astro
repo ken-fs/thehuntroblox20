@@ -1,0 +1,31 @@
+---
+/**
+ * StatBar — horizontal percentage bar for MDX content (drop rates, spawn
+ * chances, stat weights). Hand-written tables can't show "how rare is 5%";
+ * a bar makes magnitude scannable at a glance.
+ *
+ * Usage in MDX:
+ *   import StatBar from '~/components/article/StatBar.astro';
+ *   <StatBar label="Emberfang Shard" value={100} note="guaranteed" />
+ */
+interface Props {
+  /** Bar caption (item / stat name). */
+  label: string;
+  /** Percentage 0-100 (bar width). */
+  value: number;
+  /** Optional right-aligned note (e.g. "guaranteed", "1 in 20 runs"). */
+  note?: string;
+}
+const { label, value, note } = Astro.props;
+const pct = Math.max(0, Math.min(100, value));
+---
+
+<div class="not-prose my-2" role="img" aria-label={`${label}: ${pct}%`}>
+  <div class="flex items-center justify-between text-xs text-muted-foreground">
+    <span class="font-medium text-foreground">{label}</span>
+    <span>{note ?? `${pct}%`}</span>
+  </div>
+  <div class="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+    <div class="h-full rounded-full bg-nav" style={`width: ${pct}%`}></div>
+  </div>
+</div>

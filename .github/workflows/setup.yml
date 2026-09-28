@@ -1,0 +1,248 @@
+# Fork setup — one-click initialization after forking AnvilWiki.
+#
+# Run this ONCE from your fork's Actions tab ("Initialize AnvilWiki" → Run workflow).
+# Safe-to-automate, non-interactive steps only:
+#   1. Reset wrangler.toml [vars] to your domain (SITE_URL) + clear demo Giscus values
+#   2. Remove the project landing page (fork users don't need it)
+#   3. Optionally clear ALL wiki articles (default: yes — the demo game's
+#      articles now; YOUR OWN articles if you ever re-run after publishing)
+#   4. Open a PR with the changes for you to review
+#
+# What this does NOT do (run `pnpm apply-template` locally for these):
+#   game name / theme color / locales / homepage copy — see docs/apply-template.md.
+#
+# After merging: connect the repo to Cloudflare Pages (docs/deployment.md).
+
+name: Initialize AnvilWiki
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: 'Your site domain (https:// added automatically if missing), e.g. https://mygame.wiki'
+        required: true
+        default: 'https://your-domain.wiki'
+      clear_demo_content:
+        description: 'Delete ALL wiki articles under src/content/wiki (the demo game now; YOUR OWN articles if you re-run after publishing)'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Reset wrangler.toml [vars]
+        env:
+          RAW_SITE_URL: ${{ inputs.site_url }}
+        run: |
+          python3 - <<'EOF'
+          import os, re
+          from urllib.parse import urlparse
+          # Normalize: strip any leading scheme (http(s)://) AND any following
+          # slash/backslash run, then force https://. The old ^https?:// pattern
+          # missed backslash forms (https:\\mygame.wiki), and the value later
+          # flowed into a re.subn REPLACEMENT string where a single backslash
+          # raises `re.error: bad escape` and kills the whole run.
+          raw = os.environ['RAW_SITE_URL'].strip().rstrip('/\\')
+          # Case-insensitive: "HTTPS://" is the same scheme and must strip too.
+          url = re.sub(r'^(https?:)?[/\\]+', '', raw, flags=re.IGNORECASE)
+          url = f'https://{url}'
+          # Validate BEFORE writing: Astro's `site` config needs a real URL —
+          # garbage must fail HERE with plain guidance, not at deploy time.
+          # Quotes are rejected too: one in the value would break the TOML
+          # line and the double-quoted PR-body string further down.
+          parsed = urlparse(url)
+          if parsed.scheme not in ('http', 'https') or not parsed.netloc or re.search(r'[\\\s\'"]', url):
+              raise SystemExit(
+                  f'❌ "{url}" is not a usable site URL — expected something like mygame.wiki '
+                  'or https://mygame.wiki. Fix the site_url input and re-run.'
+              )
+          p = 'wrangler.toml'
+          s = open(p).read()
+          new_vars = '''[vars]
+          # Site (must include https:// protocol — Astro validates this as a URL)
+          SITE_URL = "__SITE_URL__"
+          # IndexNow ownership key — blank = disabled; set the same value in GitHub Actions vars.
+          #INDEXNOW_KEY = ""
+          # Giscus comments — blank = disabled until you fill your own values.
+          PUBLIC_GISCUS_REPO = ""
+          PUBLIC_GISCUS_REPO_ID = ""
+          PUBLIC_GISCUS_CATEGORY = ""
+          PUBLIC_GISCUS_CATEGORY_ID = ""
+          PUBLIC_GISCUS_MAPPING = "pathname"
+          # Sponsor card — blank = disabled.
+          PUBLIC_SPONSOR_URL = ""
+          PUBLIC_SPONSOR_IMAGE_URL = ""
+          # Cloudflare Web Analytics — blank = disabled.
+          PUBLIC_CF_BEACON_TOKEN = ""
+          # Optional slots (empty = disabled) — fill HERE, not the dashboard:
+          #PUBLIC_ADSENSE_CLIENT = ""
+          #PUBLIC_ADSENSE_SLOT_STICKY = ""
+          #PUBLIC_ADSENSE_SLOT_SIDEBAR = ""
+          #PUBLIC_ADSENSE_SLOT_INCONTENT = ""
+          # Adsterra — for each slot you enable, also create public/ads/<name>.html
+          # with the snippet from the Adsterra dashboard (see docs/ads.md).
+          #PUBLIC_ADSTERRA_SLOT_SIDEBAR_300X250 = ""
+          #PUBLIC_ADSTERRA_SLOT_INCONTENT_728X90 = ""
+          #PUBLIC_ADSTERRA_SLOT_NATIVE_BANNER = ""
+          #PUBLIC_ADSTERRA_SLOT_STICKY_320X50 = ""
+          #PUBLIC_ADSTERRA_SLOT_SIDEBAR_160X300 = ""
+          #PUBLIC_ADSTERRA_SLOT_SIDEBAR_160X600 = ""
+          #PUBLIC_GA_ID = ""
+          #PUBLIC_GSC_VERIFICATION = ""'''
+          new_vars = new_vars.replace('__SITE_URL__', url)
+          # Anchor [vars] at LINE START — same shape as the JS channel in
+          # scripts/lib/apply-rewrites.ts. The demo file's FORKER intro comment
+          # contains the literal text "[vars]" mid-line: the old unanchored
+          # pattern rewrote the COMMENT while leaving the real demo [vars] table
+          # below, so the fork shipped two [vars] tables (invalid TOML, the
+          # Pages deploy fails) with this workflow's own build green. Two regex
+          # traps carried over from the JS channel: NO re.M (with it `$` means
+          # line-end and the match truncates at the first newline), and the
+          # `(^|\n)` group must be re-inserted on splice or the section above
+          # loses its separating newline.
+          m = re.search(r'(^|\n)\[vars\]\r?\n[\s\S]*?(?=\r?\n\[|$)', s)
+          if m is None:
+              # [vars] is a structural invariant of the template — a silent
+              # no-op rewrite here would leave the fork on demo values with
+              # a misleading success status.
+              raise SystemExit('❌ wrangler.toml [vars] rewrite matched nothing — template drift?')
+          # Plain string splicing, NOT re.subn: the replacement embeds the
+          # user-supplied URL, and re.subn treats backslashes in a replacement
+          # as escapes (a trailing `\` → re.error). search + slicing keeps the
+          # exact same match semantics with zero escape processing.
+          out = s[:m.start()] + (m.group(1) or '') + new_vars + '\n' + s[m.end():]
+          # Drop the FORKER warning block: after the rewrite it would claim the
+          # file still carries the DEMO SITE config — stale and misleading (the
+          # JS channel removes it too). ASCII anchors only — python's `.` skips
+          # newlines exactly like JS's, so the heading's ⚠️ emoji is covered
+          # by `.*` and no multi-codepoint quantifier trap applies.
+          out = re.sub(r'# .*FORKERS READ THIS FIRST[\s\S]*?# .*END FORKER WARNING.*\n?', '', out)
+          # End with exactly one newline: python's `$` (without re.M) also
+          # matches just BEFORE a trailing newline, so a [vars] section at EOF
+          # keeps its old `\n` outside the match and the splice can double it.
+          out = out.rstrip('\n') + '\n'
+          open(p, 'w').write(out)
+          EOF
+
+      - name: Read normalized SITE_URL
+        id: vars
+        run: echo "site_url=$(grep -m1 '^SITE_URL = ' wrangler.toml | sed 's/^SITE_URL = \"\(.*\)\"$/\1/')" >> "$GITHUB_OUTPUT"
+
+      - name: Remove project landing page
+        run: |
+          # Keep in sync with LANDING_PATHS in scripts/apply-template.ts —
+          # forgetting src/pages/landing (docs routes) leaves files importing
+          # the deleted ~/config/landing and breaks the fork's build.
+          rm -rf src/components/landing src/config/landing.ts src/config/landing-types.ts src/config/landing-shared.ts src/config/landing-en.ts src/config/landing-zh.ts src/config/landing-templates.ts src/pages/landing.astro src/pages/landing src/pages/zh/landing.astro src/pages/zh/landing public/images/showcase public/images/wechat-qr.jpg public/_redirects
+          sed -i.bak 's/landingLinkEnabled = true/landingLinkEnabled = false/' src/config/project.ts && rm -f src/config/project.ts.bak
+
+      - name: Clear demo assets and demo author
+        if: ${{ inputs.clear_demo_content != 'false' }}
+        run: |
+          # Demo artwork is removed BY NAME — never a wildcard or a whole
+          # directory (public/images/articles/ is where fork authors put their
+          # own inline images). The .mdx articles themselves are cleared by the
+          # content-aware script below (single-sourced with apply-template's
+          # "Clear demo content?" via scripts/lib/apply-rewrites.ts — a re-run
+          # keeps anything the forker wrote). Keep this image list in sync with
+          # DEMO_COVERS / DEMO_GALLERY_IMAGES / DEMO_ARTICLE_IMAGES in
+          # scripts/lib/apply-rewrites.ts — pinned by tests/apply-template.test.ts.
+          rm -f src/assets/gallery/beginner-class-picks.png \
+                src/assets/gallery/beginner-route.png \
+                src/assets/gallery/emberfang-arena.png \
+                src/assets/gallery/emberfang-mechanics.png \
+                src/assets/gallery/stormcaller-arena.png \
+                src/assets/gallery/stormcaller-mechanics.png \
+                public/images/articles/weapon-frostpike.png \
+                public/images/articles/weapon-voidforge.png \
+                src/assets/covers/beginner-guide-cover.png \
+                src/assets/covers/emberfang-cover.png \
+                src/assets/covers/stormcaller-cover.png \
+                src/assets/covers/weapon-tier-list-cover.png \
+                src/assets/covers/codes-cover.png \
+                src/assets/covers/en-bosses-frostbound-monarch.png \
+                src/assets/covers/en-guides-forging-guide.png \
+                src/assets/covers/en-items-emberforged-armor-set.png \
+                src/assets/covers/en-items-forging-materials-guide.png
+          python3 - <<'EOF'
+          import re
+          p = 'src/config/authors.ts'
+          s = open(p).read()
+          # Drop the DEMO entry block (comment + 'Forge Master Kael' line).
+          s = re.sub(r"\n\s*// DEMO .*?\n\s*'Forge Master Kael'.*?\n", '\n', s)
+          open(p, 'w').write(s)
+          EOF
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.1.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      # The init PR is destructive (landing removed, demo MDX deleted) and
+      # PRs opened with GITHUB_TOKEN do NOT trigger CI — so the workflow
+      # itself must prove the tree still builds before handing it to the
+      # user. Catches file-list drift in the steps above, broken imports,
+      # and schema violations; without this, a drift bug would only surface
+      # on the fork's first Cloudflare Pages build.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Content-aware demo article clearing (single-sourced with apply-template
+      # via scripts/lib/apply-rewrites.ts). Must run AFTER install (tsx needs
+      # node_modules) and BEFORE build: demo articles carry demo categories the
+      # rewritten navigation no longer declares — the build validates the
+      # CLEARED tree, exactly what the fork will ship.
+      - name: Clear demo public config (content-aware)
+        if: ${{ inputs.clear_demo_content != 'false' }}
+        run: pnpm exec tsx scripts/clear-demo-public.ts
+
+      - name: Clear demo articles (content-aware)
+        if: ${{ inputs.clear_demo_content != 'false' }}
+        run: pnpm exec tsx scripts/clear-demo-content.ts
+
+      - name: Build (verify the initialized tree is not broken)
+        run: pnpm build
+        env:
+          SITE_URL: ${{ steps.vars.outputs.site_url }}
+
+      - name: Create branch and pull request
+        run: |
+          git config user.name "anvilwiki-setup"
+          git config user.email "actions@github.com"
+          # Idempotent re-runs: -B resets the branch instead of colliding with
+          # the previous run's commits, --force-with-lease overwrites the remote
+          # branch, and we skip commit/PR when there is nothing to change.
+          git checkout -B chore/init-from-template
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit — template already initialized."
+          else
+            git commit -m "chore(init): apply template defaults (wrangler vars, remove landing)"
+          fi
+          # The shallow checkout has no remote-tracking ref for the branch, so
+          # --force-with-lease alone rejects idempotent re-runs ("stale info").
+          git fetch origin chore/init-from-template || true
+          git push --force-with-lease origin chore/init-from-template
+          gh pr create --title "Initialize AnvilWiki for your game" \
+            --body "Automated by the Initialize AnvilWiki workflow. wrangler.toml [vars] reset to ${SITE_URL_INPUT} (demo Giscus cleared); project landing page removed. Next: run pnpm apply-template locally for game name / theme / locales, then connect Cloudflare Pages (docs/deployment.md)." \
+            || echo "PR already exists — leaving the existing one open."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The NORMALIZED url (steps.vars), not the raw input — keeps shell
+          # metacharacters and stray backslashes out of the PR body text.
+          SITE_URL_INPUT: ${{ steps.vars.outputs.site_url }}
