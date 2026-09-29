@@ -49,6 +49,26 @@ const W = 1200;
 const H = 675;
 const CONTENT_DIR = join(root, 'src/content/wiki');
 const COVERS_DIR = join(root, 'src/assets/covers');
+/**
+ * FORK ADDITION (thehuntroblox20): official-art brand assets.
+ *
+ * `cover-bg.png` is the game's own promotional thumbnail and `<category>-<slug>.png`
+ * are the game's own badge icons (one per article, keyed by topic) — both fetched
+ * from Roblox's public thumbnail API, so they are the developer's assets rather
+ * than anything scraped from a third-party wiki. Text-only covers read as
+ * low-trust next to real screenshots; these make every card show actual game art.
+ *
+ * Both are OPTIONAL: with neither present the renderer falls back to the original
+ * gradient cover, so a fork that deletes this folder still builds.
+ *
+ * Resolution order for the BACKGROUND:
+ *   <category>-<slug>-bg.png  →  cover-bg.png  →  built-in gradient
+ * A game with several official screenshots can therefore give each article its
+ * own backdrop, while a game with only one (or none) just shares the fallback.
+ * The ICON is always <category>-<slug>.png, with no shared fallback.
+ */
+const BRAND_DIR = join(root, 'src/assets/brand');
+const COVER_BG = join(BRAND_DIR, 'cover-bg.png');
 const FONT_CACHE = join(root, 'node_modules/.cache/gen-covers/fonts');
 const MANIFEST_VERSION = 1;
 
@@ -215,8 +235,16 @@ function coverElement(opts: {
   brandDeepHex: string;
   lang: string;
   fontFamily: string;
+  bgUri?: string;
+  iconUri?: string;
 }): Element {
   const shortName = site.shortName.toUpperCase();
+  // With official art behind the text, the gradient turns into a legibility
+  // scrim: dark enough at the left for the title, lighter at the right so the
+  // screenshot still reads as a screenshot.
+  const backgroundImage = opts.bgUri
+    ? `linear-gradient(100deg, rgba(9,12,19,0.95) 0%, rgba(11,15,23,0.88) 42%, rgba(15,19,28,0.62) 100%), url(${opts.bgUri})`
+    : `linear-gradient(135deg, #0f131c 0%, #151b28 55%, ${opts.brandDeepHex} 100%)`;
   return el(
     'div',
     {
@@ -226,7 +254,9 @@ function coverElement(opts: {
       flexDirection: 'column',
       justifyContent: 'space-between',
       padding: '72px 72px 64px 96px',
-      backgroundImage: `linear-gradient(135deg, #0f131c 0%, #151b28 55%, ${opts.brandDeepHex} 100%)`,
+      backgroundImage,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
       position: 'relative',
       fontFamily: opts.fontFamily,
       backgroundColor: '#0f131c',
@@ -234,10 +264,8 @@ function coverElement(opts: {
     [
       // Brand accent bar — the only brand-colored surface on the cover.
       el('div', { position: 'absolute', left: 0, top: 0, bottom: 0, width: '14px', backgroundColor: opts.brandHex }),
-      // Top row: wiki short name.
-      el(
-        'div',
-        { display: 'flex', alignItems: 'center' },
+      // Top row: wiki short name, with the article's topic icon opposite it.
+      el('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }, [
         el(
           'div',
           {
@@ -248,7 +276,14 @@ function coverElement(opts: {
           },
           shortName,
         ),
-      ),
+        opts.iconUri
+          ? el('img', { borderRadius: '18px', opacity: 0.95 }, undefined, {
+              src: opts.iconUri,
+              width: 128,
+              height: 128,
+            })
+          : el('div', { display: 'flex' }),
+      ]),
       // Title — sized by pickFontSize to stay within ~2 lines.
       el(
         'div',
@@ -259,28 +294,29 @@ function coverElement(opts: {
           paddingTop: '24px',
           paddingBottom: '24px',
         },
-        el('div', {
-          fontSize: `${opts.fontSize}px`,
-          fontWeight: 700,
-          color: '#f1f5f9',
-          lineHeight: 1.18,
-          maxWidth: '1000px',
-          textWrap: 'balance',
-        }, opts.title),
+        el(
+          'div',
+          {
+            fontSize: `${opts.fontSize}px`,
+            fontWeight: 700,
+            color: '#f8fafc',
+            lineHeight: 1.18,
+            maxWidth: '900px',
+            textWrap: 'balance',
+            textShadow: '0 2px 18px rgba(0,0,0,0.55)',
+          },
+          opts.title,
+        ),
       ),
       // Bottom row: game name · domain.
-      el(
-        'div',
-        { display: 'flex', alignItems: 'center', gap: '18px' },
-        [
-          el('div', { width: '46px', height: '5px', backgroundColor: opts.brandHex, borderRadius: '3px' }),
-          el(
-            'div',
-            { fontSize: '26px', color: '#8b95a8', letterSpacing: '1px' },
-            `${site.game.name}  ·  ${site.domain}`,
-          ),
-        ],
-      ),
+      el('div', { display: 'flex', alignItems: 'center', gap: '18px' }, [
+        el('div', { width: '46px', height: '5px', backgroundColor: opts.brandHex, borderRadius: '3px' }),
+        el(
+          'div',
+          { fontSize: '26px', color: '#cbd5e1', letterSpacing: '1px' },
+          `${site.game.name}  ·  ${site.domain}`,
+        ),
+      ]),
     ],
     { lang: opts.lang },
   );
@@ -299,13 +335,34 @@ async function renderCover(article: Article, brandHex: string, brandDeepHex: str
     fontFamily = `Lato, ${NOTO_VARIANTS[script].family}`;
     lang = script === 'ja' ? 'ja-JP' : 'zh-CN';
   }
-  const element = coverElement({ title, fontSize: pickFontSize(title), brandHex, brandDeepHex, lang, fontFamily });
+  // Official art (optional). article.id is "<locale>/<category>/<slug>", so the
+  // brand files are "<category>-<slug>-bg.png" (per-article backdrop, falling
+  // back to the shared cover-bg.png) and "<category>-<slug>.png" (topic icon).
+  const brandKey = article.id.split('/').slice(1).join('-');
+  const bgUri = dataUri(join(BRAND_DIR, `${brandKey}-bg.png`)) ?? dataUri(COVER_BG);
+  const iconUri = dataUri(join(BRAND_DIR, `${brandKey}.png`));
+  const element = coverElement({
+    title,
+    fontSize: pickFontSize(title),
+    brandHex,
+    brandDeepHex,
+    lang,
+    fontFamily,
+    bgUri,
+    iconUri,
+  });
   const svg = await satori(element as unknown as Parameters<typeof satori>[0], {
     width: W,
     height: H,
     fonts,
   });
   return new Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng();
+}
+
+/** Read a PNG as a data URI for satori. Missing file → undefined (caller falls back). */
+function dataUri(path: string): string | undefined {
+  if (!existsSync(path)) return undefined;
+  return `data:image/png;base64,${readFileSync(path).toString('base64')}`;
 }
 
 // --- frontmatter wiring ------------------------------------------------------------
