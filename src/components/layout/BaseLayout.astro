@@ -333,6 +333,12 @@ const privacyLabel = consent?.privacyLabel ?? footerStrings.privacyPolicy ?? 'Pr
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">
     <slot />
+    {/* Social Bar ad (bauval.org /14/ tag) — site-wide, off when the env flag
+        is empty. Loads after content; the snippet ships no async/defer from
+        the network, so keep it verbatim at end of body. */}
+    {import.meta.env.PUBLIC_SOCIAL_BAR_URL && (
+      <script is:inline data-cfasync="false" src={import.meta.env.PUBLIC_SOCIAL_BAR_URL}></script>
+    )}
     {/* Consent banner — only rendered when tracking env vars are set. */}
     {(gaId || adsenseClient) && (
       <CookieConsent
